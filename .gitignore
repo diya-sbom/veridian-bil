@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+
+# Logs
+*.log
+
+# SQLite databases (keep only if they are generated locally)
+*.db
+*.sqlite3
+
+# Runtime state (generated during demos/tests)
+state_store.json
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
