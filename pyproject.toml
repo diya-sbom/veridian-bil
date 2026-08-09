@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veridian"
+version = "1.0.0"
+description = "Verifiable control architecture for governed autonomous system execution"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+]
+
+[tool.setuptools]
+py-modules = [
+    "demo",
+    "diya_adapter",
+    "replay_verifier",
+    "state_store",
+]
+packages = [
+    "afs",
+    "bil",
+    "bvp",
+    "continuity",
+    "decisionassure",
+    "executor",
+    "mira",
+    "records",
+]
