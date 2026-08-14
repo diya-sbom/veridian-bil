@@ -38,6 +38,39 @@ def verify_chain(
 ):
     checks = {}
 
+    required_evidence = {
+        "intent_receipt": intent_receipt,
+        "intent_record": intent_record,
+        "execution": execution,
+        "state_receipt": state_receipt,
+        "state_record": state_record,
+        "commit": commit,
+        "commit_record": commit_record,
+        "stored_state": stored_state,
+    }
+
+    missing_evidence = [
+        name
+        for name, value in required_evidence.items()
+        if value is None
+    ]
+
+    if missing_evidence:
+        checks.update({
+            f"missing_{name}": False
+            for name in missing_evidence
+        })
+
+        return ReplayResult(
+            passed=False,
+            status="FAILED_CLOSED",
+            checks=checks,
+            failed_checks=[
+                f"missing_{name}"
+                for name in missing_evidence
+            ],
+        )
+
     # Intent Receipt signature
     intent_payload = {
         "decision_id": intent_receipt.decision_id,
