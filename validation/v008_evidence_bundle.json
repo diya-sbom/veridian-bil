@@ -1,0 +1,76 @@
+{
+  "commit": {
+    "commit_hash": "f4f3791c392b6fd5af38594dca3f33db67e8b0b4d9a0dac3cda418747d6ebf94",
+    "commit_id": "efdbf667-f990-4780-b79b-2c840ca021cf",
+    "committed": true,
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "signature": "e4c8711437279962904419aebed94bda5eaf826118324bda5fa245ec8b4c595f",
+    "state_record_id": "0b29ae5a-2750-4a2f-a042-3122c26354fb",
+    "timestamp": "2026-08-15T03:12:39.884923+00:00"
+  },
+  "commit_record": {
+    "commit_hash": "f4f3791c392b6fd5af38594dca3f33db67e8b0b4d9a0dac3cda418747d6ebf94",
+    "commit_id": "efdbf667-f990-4780-b79b-2c840ca021cf",
+    "commit_record_id": "bbccf5db-ff1e-4d03-8fca-4a71c97009d2",
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "signature": "27d0c657f3531bf2674101adaf5a4cf33c0965026aa3d4eba079384ebde2d0a1",
+    "timestamp": "2026-08-15T03:12:39.884955+00:00"
+  },
+  "execution": {
+    "action": "DEPLOY",
+    "decision_id": "8b85458b-44e8-4797-a08f-b9184d5c8ce1",
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "message": "Intent executed successfully",
+    "status": "EXECUTED",
+    "timestamp": "2026-08-15T03:12:39.884828+00:00"
+  },
+  "intent_receipt": {
+    "boundary_receipt_hash": "4d2e0da2ac55bc83513697035385ce6b991bf3e07570c8a6e738ce0e6236e897",
+    "decision_id": "8b85458b-44e8-4797-a08f-b9184d5c8ce1",
+    "intent_receipt_id": "7af0ccda-f711-4fb4-a7c4-936b3f70af19",
+    "signature": "bc048e72382da2b9e8a9dcae96c2c6f97921b972f3e725ce2ba5b2bd5648f417",
+    "timestamp": "2026-08-15T03:12:39.884772+00:00",
+    "verification_status": "VERIFIED"
+  },
+  "intent_record": {
+    "artifact_hash": "782769b082f4f62b70b39c6b911c3d9061df9dca1931ffca61bdfc9d6ed330e5",
+    "boundary_receipt_id": "7ea5f3ee-1139-44ad-9653-7ed11bb60902",
+    "decision_id": "8b85458b-44e8-4797-a08f-b9184d5c8ce1",
+    "governance_receipt_id": "8b85458b-44e8-4797-a08f-b9184d5c8ce1",
+    "intent_receipt_id": "7af0ccda-f711-4fb4-a7c4-936b3f70af19",
+    "intent_record_id": "29de81cf-5e6f-4577-a0f8-8c57999dc7d7",
+    "signature": "b6456b1473d521348b3e031ed9bea238295ba00ccfa4f86477078985c740be5f",
+    "status": "VERIFIED",
+    "timestamp": "2026-08-15T03:12:39.884812+00:00"
+  },
+  "state_receipt": {
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "signature": "10228f5eb32569985ab3ce62b25922ffbc6e5b458bf9f3e34330e6d534134f8b",
+    "state": {
+      "deployment": "SUCCESS",
+      "status": "ACTIVE",
+      "version": "1.0.0"
+    },
+    "state_hash": "bf77bd25a07128a34275e7c7685f23f82ae11ab937b635b6a36438d81c521687",
+    "state_receipt_id": "e93a7eda-67d6-424e-8f75-00535af33d06",
+    "timestamp": "2026-08-15T03:12:39.884862+00:00",
+    "verification_status": "VERIFIED"
+  },
+  "state_record": {
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "signature": "3076b70909a9c448e26488ac2cc62c22cf3f5d0e28e6930a5c9cd635ded049e5",
+    "state_hash": "bf77bd25a07128a34275e7c7685f23f82ae11ab937b635b6a36438d81c521687",
+    "state_receipt_id": "e93a7eda-67d6-424e-8f75-00535af33d06",
+    "state_record_id": "0b29ae5a-2750-4a2f-a042-3122c26354fb",
+    "timestamp": "2026-08-15T03:12:39.884893+00:00",
+    "verification_status": "VERIFIED"
+  },
+  "stored_state": {
+    "commit_id": "efdbf667-f990-4780-b79b-2c840ca021cf",
+    "committed": true,
+    "execution_id": "9985650d-9d4d-4708-b5a2-1877339a6e50",
+    "state_hash": "bf77bd25a07128a34275e7c7685f23f82ae11ab937b635b6a36438d81c521687",
+    "state_record_id": "0b29ae5a-2750-4a2f-a042-3122c26354fb",
+    "verification_status": "VERIFIED"
+  }
+}
