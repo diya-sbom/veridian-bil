@@ -1,0 +1,60 @@
+VERIDIAN V-011 EXTERNAL INDEPENDENT VERIFICATION
+================================================
+
+TEST 1: KNOWN-GOOD V-008 EVIDENCE
+VERIDIAN EXTERNAL INDEPENDENT VERIFIER
+========================================
+intent_receipt_signature: PASS
+intent_record_hash: PASS
+intent_record_signature: PASS
+intent_linkage: PASS
+execution_linkage: PASS
+execution_status: PASS
+state_receipt_hash: PASS
+state_receipt_signature: PASS
+state_receipt_linkage: PASS
+state_receipt_verified: PASS
+state_record_signature: PASS
+state_record_linkage: PASS
+state_record_verified: PASS
+commit_hash: PASS
+commit_signature: PASS
+commit_linkage: PASS
+commit_status: PASS
+commit_record_signature: PASS
+commit_record_linkage: PASS
+state_store_linkage: PASS
+state_store_status: PASS
+
+FINAL RESULT
+========================================
+{'passed': True, 'status': 'VERIFIED', 'checks': {'intent_receipt_signature': True, 'intent_record_hash': True, 'intent_record_signature': True, 'intent_linkage': True, 'execution_linkage': True, 'execution_status': True, 'state_receipt_hash': True, 'state_receipt_signature': True, 'state_receipt_linkage': True, 'state_receipt_verified': True, 'state_record_signature': True, 'state_record_linkage': True, 'state_record_verified': True, 'commit_hash': True, 'commit_signature': True, 'commit_linkage': True, 'commit_status': True, 'commit_record_signature': True, 'commit_record_linkage': True, 'state_store_linkage': True, 'state_store_status': True}, 'failed_checks': []}
+
+TEST 2: TAMPERED V-009 EVIDENCE
+VERIDIAN EXTERNAL INDEPENDENT VERIFIER
+========================================
+intent_receipt_signature: PASS
+intent_record_hash: PASS
+intent_record_signature: PASS
+intent_linkage: PASS
+execution_linkage: PASS
+execution_status: PASS
+state_receipt_hash: FAIL
+state_receipt_signature: FAIL
+state_receipt_linkage: PASS
+state_receipt_verified: PASS
+state_record_signature: PASS
+state_record_linkage: PASS
+state_record_verified: PASS
+commit_hash: PASS
+commit_signature: PASS
+commit_linkage: PASS
+commit_status: PASS
+commit_record_signature: PASS
+commit_record_linkage: PASS
+state_store_linkage: PASS
+state_store_status: PASS
+
+FINAL RESULT
+========================================
+{'passed': False, 'status': 'FAILED_CLOSED', 'checks': {'intent_receipt_signature': True, 'intent_record_hash': True, 'intent_record_signature': True, 'intent_linkage': True, 'execution_linkage': True, 'execution_status': True, 'state_receipt_hash': False, 'state_receipt_signature': False, 'state_receipt_linkage': True, 'state_receipt_verified': True, 'state_record_signature': True, 'state_record_linkage': True, 'state_record_verified': True, 'commit_hash': True, 'commit_signature': True, 'commit_linkage': True, 'commit_status': True, 'commit_record_signature': True, 'commit_record_linkage': True, 'state_store_linkage': True, 'state_store_status': True}, 'failed_checks': ['state_receipt_hash', 'state_receipt_signature']}
