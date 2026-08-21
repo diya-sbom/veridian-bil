@@ -1,0 +1,7 @@
+VERIDIAN EXTERNAL INDEPENDENT VERIFIER
+========================================
+missing_intent_record: FAIL
+
+FINAL RESULT
+========================================
+{'passed': False, 'status': 'FAILED_CLOSED', 'checks': {'missing_intent_record': False}, 'failed_checks': ['missing_intent_record']}
