@@ -1,0 +1,7 @@
+VERIDIAN EXTERNAL INDEPENDENT VERIFIER
+========================================
+missing_state_record: FAIL
+
+FINAL RESULT
+========================================
+{'passed': False, 'status': 'FAILED_CLOSED', 'checks': {'missing_state_record': False}, 'failed_checks': ['missing_state_record']}
