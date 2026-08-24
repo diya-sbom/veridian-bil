@@ -1,0 +1,7 @@
+VERIDIAN EXTERNAL INDEPENDENT VERIFIER
+========================================
+missing_execution: FAIL
+
+FINAL RESULT
+========================================
+{'passed': False, 'status': 'FAILED_CLOSED', 'checks': {'missing_execution': False}, 'failed_checks': ['missing_execution']}
