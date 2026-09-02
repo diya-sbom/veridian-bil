@@ -17,6 +17,16 @@ class ExecutionResult:
 
 
 def execute_intent(intent_record):
+    if intent_record.status != "VERIFIED":
+        return ExecutionResult(
+            execution_id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            decision_id=intent_record.decision_id,
+            status="FAILED_CLOSED",
+            action="NONE",
+            message="Execution blocked: intent not verified",
+        )
+
     return ExecutionResult(
         execution_id=str(uuid.uuid4()),
         timestamp=datetime.now(timezone.utc).isoformat(),
