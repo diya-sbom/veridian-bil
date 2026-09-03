@@ -80,3 +80,18 @@ This phase is complete only when:
 ## Principle
 
 Possession of capability is not proof of authority.
+
+## Authority Scope to Intended Action
+
+Authority scope is evaluated against the intended action using an explicit,
+deterministic mapping. No fuzzy, substring, or semantic matching is permitted.
+
+Current governed mapping:
+
+- `Production Deployment` -> `DEPLOY`
+
+If the authority scope does not explicitly authorize the intended action,
+authority validation must fail closed with `OUT_OF_SCOPE`.
+
+Additional scope-to-action mappings require an explicit governance definition
+before they may be accepted.
