@@ -11,7 +11,7 @@ class ResponsibilityChain:
     """
 
     chain_id: str
-    timestamp: str
+    delegation_time: str
 
     organization: str
     business_owner: str
@@ -46,7 +46,7 @@ def create_responsibility_chain(
 
     return ResponsibilityChain(
         chain_id=str(uuid4()),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        delegation_time=datetime.now(timezone.utc).isoformat(),
 
         organization=organization,
         business_owner=business_owner,
