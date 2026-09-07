@@ -23,9 +23,9 @@
 
 - `policy_version`: the exact policy version evaluated for the governed decision and used for continuity checks.
 
-- `policy_reference`: an immutable reference to the governing policy artifact or policy record from which the applicable authority/delegation rules are derived. It does not replace `policy_version`.
+- `policy_reference`: an opaque immutable identifier for the exact governing policy artifact or policy record from which the applicable authority/delegation rules are derived. The referenced artifact may be stored outside Veridian. It does not replace `policy_version`.
 
-- `evidence_reference`: an immutable reference to evidence establishing the authority or delegation represented by the Responsibility Chain. It is distinct from `DecisionObject.evidence_references`, which support the governance decision itself.
+- `evidence_reference`: an opaque immutable identifier for the exact evidence establishing the authority or delegation represented by the Responsibility Chain. The referenced evidence may be stored outside Veridian. It is distinct from `DecisionObject.evidence_references`, which support the governance decision itself.
 
 - `delegation_time`: records when the delegation was created or accepted. It is provenance data and does not, by itself, establish whether authority is still valid.
 
