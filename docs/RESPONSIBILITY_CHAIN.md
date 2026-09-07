@@ -44,7 +44,7 @@ Outcome
 Every delegation records:
 
 - Who delegated
-- Who accepted
+- Who received the delegation (`delegated_to`)
 - Scope of authority
 - Time
 - Policy
