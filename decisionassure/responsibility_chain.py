@@ -26,6 +26,7 @@ class ResponsibilityChain:
     ai_system: str
     agent: str
     sub_agent: Optional[str]
+    valid_until: Optional[str]
 
     def to_dict(self):
         return asdict(self)
@@ -42,6 +43,7 @@ def create_responsibility_chain(
     ai_system: str,
     agent: str,
     sub_agent: Optional[str] = None,
+    valid_until: Optional[str] = None,
 ):
 
     return ResponsibilityChain(
@@ -61,4 +63,5 @@ def create_responsibility_chain(
         ai_system=ai_system,
         agent=agent,
         sub_agent=sub_agent,
+        valid_until=valid_until,
     )
