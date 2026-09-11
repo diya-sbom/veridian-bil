@@ -11,7 +11,7 @@ class ResponsibilityChain:
     """
 
     chain_id: str
-    timestamp: str
+    delegation_time: str
 
     organization: str
     business_owner: str
@@ -26,6 +26,10 @@ class ResponsibilityChain:
     ai_system: str
     agent: str
     sub_agent: Optional[str]
+    valid_until: Optional[str]
+    policy_reference: Optional[str]
+    evidence_reference: Optional[str]
+    authority_evidence_source: Optional[str]
 
     def to_dict(self):
         return asdict(self)
@@ -42,11 +46,15 @@ def create_responsibility_chain(
     ai_system: str,
     agent: str,
     sub_agent: Optional[str] = None,
+    valid_until: Optional[str] = None,
+    policy_reference: Optional[str] = None,
+    evidence_reference: Optional[str] = None,
+    authority_evidence_source: Optional[str] = None,
 ):
 
     return ResponsibilityChain(
         chain_id=str(uuid4()),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        delegation_time=datetime.now(timezone.utc).isoformat(),
 
         organization=organization,
         business_owner=business_owner,
@@ -61,4 +69,8 @@ def create_responsibility_chain(
         ai_system=ai_system,
         agent=agent,
         sub_agent=sub_agent,
+        valid_until=valid_until,
+        policy_reference=policy_reference,
+        evidence_reference=evidence_reference,
+        authority_evidence_source=authority_evidence_source,
     )

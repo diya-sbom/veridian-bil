@@ -17,6 +17,7 @@ def verify_boundary_receipt(
     artifact: Dict[str, Any],
     expected_sender: Optional[str] = None,
     expected_receiver: Optional[str] = None,
+    expected_artifact_type: Optional[str] = None,
     expected_previous_receipt_hash: Optional[str] = None,
 ) -> BoundaryVerificationResult:
     """
@@ -77,6 +78,16 @@ def verify_boundary_receipt(
             passed=False,
             message="Unexpected receiver",
             failed_field="receiver",
+        )
+
+    if (
+        expected_artifact_type is not None
+        and receipt.artifact_type != expected_artifact_type
+    ):
+        return BoundaryVerificationResult(
+            passed=False,
+            message="Unexpected artifact type",
+            failed_field="artifact_type",
         )
 
     if (

@@ -6,11 +6,6 @@ from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
 from executor.executor import execute_intent
-from mira.state_receipt import create_state_receipt
-from bil.state_record import create_state_record
-from afs.commit import commit_state
-from bil.commit_record import create_commit_record
-from state_store import save_state
 
 decision = create_decision_object(
     requestor="human-001",
@@ -20,7 +15,7 @@ decision = create_decision_object(
     intent="Approve deployment",
     evidence_references=["evidence-001"],
     decision="APPROVED",
-    intended_action="DEPLOY",
+    intended_action="DELETE",
     intended_state={"status": "ACTIVE"},
 )
 
@@ -46,7 +41,12 @@ boundary = create_boundary_receipt(
     policy_version="policy-v1",
 )
 
-verification = verify_intent(decision, gov, boundary, responsibility_chain)
+verification = verify_intent(
+    decision,
+    gov,
+    boundary,
+    responsibility_chain,
+)
 
 intent_receipt = create_intent_receipt(boundary, verification)
 
@@ -58,23 +58,12 @@ intent_record = create_intent_record(
 
 execution = execute_intent(intent_record)
 
-state = {
-    "status": "ACTIVE",
-    "version": "1.0.0",
-    "deployment": "SUCCESS",
-}
+print(execution)
+print(execution.to_dict())
 
-state_receipt = create_state_receipt(execution, state)
-
-state_record = create_state_record(state_receipt)
-
-commit = commit_state(state_record)
-
-commit_record = create_commit_record(commit)
-
-saved = save_state(
-    commit,
-    state_record,
-)
-
-print(saved)
+assert verification.status == "FAILED"
+assert verification.reason == "OUT_OF_SCOPE"
+assert verification.intent_receipt_id is None
+assert execution.status == "FAILED_CLOSED"
+assert execution.action == "NONE"
+assert execution.message == "Execution blocked: intent not verified"
