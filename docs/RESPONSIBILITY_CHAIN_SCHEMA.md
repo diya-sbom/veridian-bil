@@ -18,6 +18,7 @@
 | authority_scope | String | Yes |
 | policy_reference | String | Yes |
 | evidence_reference | UUID | Yes |
+| authority_evidence_source | String | Yes |
 
 ## Field Semantics
 
@@ -26,6 +27,8 @@
 - `policy_reference`: an opaque immutable identifier for the exact governing policy artifact or policy record from which the applicable authority/delegation rules are derived. The referenced artifact may be stored outside Veridian. It does not replace `policy_version`.
 
 - `evidence_reference`: an opaque immutable identifier for the exact evidence establishing the authority or delegation represented by the Responsibility Chain. The referenced evidence may be stored outside Veridian. It is distinct from `DecisionObject.evidence_references`, which support the governance decision itself.
+
+- `authority_evidence_source`: the explicitly identified source expected to issue or attest the authority-delegation evidence. It is used to bind authority evidence provenance to the expected sender and must not be inferred from `decision_authority`, `delegated_by`, or `evidence_reference`.
 
 - `delegation_time`: records when the delegation was created or accepted. It is provenance data and does not, by itself, establish whether authority is still valid.
 

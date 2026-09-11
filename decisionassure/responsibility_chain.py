@@ -29,6 +29,7 @@ class ResponsibilityChain:
     valid_until: Optional[str]
     policy_reference: Optional[str]
     evidence_reference: Optional[str]
+    authority_evidence_source: Optional[str]
 
     def to_dict(self):
         return asdict(self)
@@ -48,6 +49,7 @@ def create_responsibility_chain(
     valid_until: Optional[str] = None,
     policy_reference: Optional[str] = None,
     evidence_reference: Optional[str] = None,
+    authority_evidence_source: Optional[str] = None,
 ):
 
     return ResponsibilityChain(
@@ -70,4 +72,5 @@ def create_responsibility_chain(
         valid_until=valid_until,
         policy_reference=policy_reference,
         evidence_reference=evidence_reference,
+        authority_evidence_source=authority_evidence_source,
     )
