@@ -18,6 +18,7 @@ def verify_boundary_receipt(
     expected_sender: Optional[str] = None,
     expected_receiver: Optional[str] = None,
     expected_artifact_type: Optional[str] = None,
+    expected_policy_version: Optional[str] = None,
     expected_previous_receipt_hash: Optional[str] = None,
 ) -> BoundaryVerificationResult:
     """
@@ -88,6 +89,16 @@ def verify_boundary_receipt(
             passed=False,
             message="Unexpected artifact type",
             failed_field="artifact_type",
+        )
+
+    if (
+        expected_policy_version is not None
+        and receipt.policy_version != expected_policy_version
+    ):
+        return BoundaryVerificationResult(
+            passed=False,
+            message="Unexpected policy version",
+            failed_field="policy_version",
         )
 
     if (

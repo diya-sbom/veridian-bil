@@ -98,6 +98,7 @@ def validate_responsibility_chain(
         expected_sender=responsibility_chain.authority_evidence_source,
         expected_receiver="Veridian",
         expected_artifact_type="AUTHORITY_DELEGATION",
+        expected_policy_version=responsibility_chain.policy_version,
     )
 
     if not boundary_result.passed:
