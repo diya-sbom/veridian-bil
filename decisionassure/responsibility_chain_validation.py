@@ -148,6 +148,16 @@ def validate_responsibility_chain(
                 failed_condition="BROKEN_CHAIN",
             )
 
+        if execution_time is not None and (
+            execution_time.tzinfo is None
+            or execution_time.utcoffset() is None
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Execution time must be timezone-aware",
+                failed_condition="BROKEN_CHAIN",
+            )
+
         now = execution_time or datetime.now(timezone.utc)
 
         if now > valid_until:
