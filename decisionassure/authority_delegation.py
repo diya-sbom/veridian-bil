@@ -11,6 +11,29 @@ VALID_DELEGATION_STATUSES = {
 
 @dataclass(frozen=True)
 class AuthorityDelegationEvidence:
+    """
+    Evidence record describing a claimed authority delegation.
+
+    Supports:
+    - deterministic integrity checking of the recorded delegation fields;
+    - comparison of those fields against the Responsibility Chain;
+    - binding to external boundary evidence that identifies the expected source.
+
+    Assumes:
+    - the referenced policy and evidence identifiers resolve to the intended
+      governing artifacts;
+    - the configured authority evidence source is itself trusted for the claim
+      it supplies.
+
+    Does not by itself establish:
+    - that the delegator actually possessed authority to delegate;
+    - that the delegation remains valid at execution time;
+    - that the intended action is within scope;
+    - that delegation_status="AUTHORIZED" is truthful merely because the hash
+      verifies.
+
+    Hash verification proves integrity of this record, not authority.
+    """
     evidence_hash: str
     delegator: str
     delegatee: str
