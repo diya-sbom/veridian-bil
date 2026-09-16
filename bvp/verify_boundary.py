@@ -22,15 +22,27 @@ def verify_boundary_receipt(
     expected_previous_receipt_hash: Optional[str] = None,
 ) -> BoundaryVerificationResult:
     """
-    Independently verify a Boundary Receipt.
+    Independently verify deterministic properties of a Boundary Receipt.
 
     Verification confirms:
-    - artifact integrity
-    - receipt integrity
-    - sender identity
-    - receiver identity
-    - receipt-chain continuity
-    - successful verification status
+    - artifact integrity against the recorded artifact hash;
+    - receipt integrity against the recorded receipt hash;
+    - recorded sender and receiver identifiers match expected identifiers;
+    - optional artifact type and policy version match expected values;
+    - optional receipt-chain linkage matches the expected previous receipt hash;
+    - the recorded verification_status is VERIFIED.
+
+    Assumes:
+    - expected identifiers and policy values are supplied from a trusted context.
+
+    Does not by itself establish:
+    - cryptographic authentication of the sender or receiver;
+    - that the recorded sender actually originated the artifact or receipt;
+    - that verification_status=VERIFIED is truthful merely because it is recorded;
+    - that the underlying action was authorized or otherwise admissible.
+
+    Receipt verification proves integrity and expected-field continuity,
+    not external identity, authority, or truth.
     """
 
     recomputed_artifact_hash = sha256(
