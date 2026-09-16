@@ -26,7 +26,30 @@ def canonical_json(data: Dict[str, Any]) -> str:
 @dataclass(frozen=True)
 class BoundaryReceipt:
     """
-    Immutable evidence of a handoff between two protected components.
+    Integrity-bound record describing a claimed boundary handoff.
+
+    Supports:
+    - deterministic binding of the supplied artifact to artifact_hash;
+    - deterministic binding of receipt fields to current_receipt_hash;
+    - recording sender, receiver, artifact type, policy version, status,
+      timestamp, and optional previous-receipt linkage;
+    - later continuity checks against trusted expected values.
+
+    Assumes:
+    - sender and receiver identifiers are supplied correctly;
+    - policy_version and verification_status are supplied by the component
+      responsible for creating the receipt;
+    - any trust placed in those identifiers or status comes from outside this
+      record unless separately established.
+
+    Does not by itself establish:
+    - cryptographic identity or authentication of sender or receiver;
+    - that the claimed sender actually originated the artifact or receipt;
+    - that verification_status="VERIFIED" is truthful merely because recorded;
+    - that the handoff, artifact, or underlying action was authorized;
+    - that either endpoint is a protected or trustworthy component.
+
+    Receipt hashing proves integrity of recorded claims, not their external truth.
     """
 
     receipt_id: str
