@@ -27,9 +27,41 @@ def validate_responsibility_chain(
     execution_time: Optional[datetime] = None,
 ) -> ResponsibilityChainValidationResult:
     """
-    Deterministically validate Responsibility Chain semantics.
+    Deterministically evaluate whether recorded Responsibility Chain evidence
+    satisfies the authority conditions required for the intended action.
 
-    Unknown or insufficient authority evidence fails closed.
+    Validation checks:
+    - originating decision authority is present;
+    - required responsibility-chain linkage is present;
+    - policy, authority, and responsible-party fields match the decision;
+    - authority-delegation evidence integrity verifies;
+    - the configured authority evidence source is present;
+    - the authority Boundary Receipt matches expected source, receiver,
+      artifact type, and policy version;
+    - delegation evidence fields match the Responsibility Chain;
+    - delegation_status is AUTHORIZED;
+    - explicit authority validity has not expired at execution time;
+    - the intended action is permitted by the recorded authority scope.
+
+    Unknown, inconsistent, expired, or insufficient authority evidence fails closed.
+
+    Assumes:
+    - trusted expected values and authority evidence sources are configured
+      correctly;
+    - referenced policy and evidence identifiers resolve to the intended
+      governing artifacts.
+
+    Does not by itself establish:
+    - cryptographic authentication of the authority source;
+    - that an external authority claim is truthful merely because its record
+      and receipt are internally consistent;
+    - that the delegator possessed authority beyond what the supplied trusted
+      evidence establishes;
+    - authorization for any means or action not explicitly permitted by the
+      validated authority scope.
+
+    Validation proves deterministic admissibility under the supplied authority
+    evidence and configured trust assumptions, not universal external authority.
     """
 
     if not responsibility_chain.decision_authority.strip():
