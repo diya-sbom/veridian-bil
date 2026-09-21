@@ -32,6 +32,26 @@ Veridian must deny execution when authority validation produces:
 - UNAUTHORIZED_DELEGATION
 - EXPIRED_AUTHORITY
 - OUT_OF_SCOPE
+- AUTHORITY_LIMIT_EXCEEDED
+
+## Cumulative Authority Exhaustion
+
+`AUTHORITY_LIMIT_EXCEEDED`: the intended action is individually permitted by the
+recorded authority scope, but executing it would exceed an explicit delegated
+limit or consume more authority than remains available at execution time.
+
+Examples include:
+- spending ceiling;
+- invocation count;
+- resource consumption;
+- recursion limit;
+- bounded time-window usage.
+
+This condition is distinct from `OUT_OF_SCOPE`: the action type may be authorized,
+while the remaining delegated allowance is insufficient.
+
+Execution must be denied before the limit is exceeded, and the denial must be
+preserved as replayable evidence.
 
 ## Primary Adversarial Scenario
 
@@ -71,7 +91,8 @@ This phase is complete only when:
 
 - authority is evaluated before execution;
 - authority scope is evaluated against the intended action;
-- invalid or out-of-scope delegation prevents execution;
+- remaining delegated authority is evaluated before execution when explicit cumulative limits apply;
+- invalid, out-of-scope, expired, or limit-exceeding authority prevents execution;
 - denial evidence is preserved;
 - authorized execution remains supported;
 - authority decisions can be independently replayed;
