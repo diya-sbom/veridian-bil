@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import uuid
 
 from decisionassure.authority_scope import is_action_authorized
+from decisionassure.responsibility_chain_validation import validate_responsibility_chain
 
 
 @dataclass
@@ -23,7 +24,26 @@ def verify_intent(
     governance_receipt,
     boundary_receipt,
     responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
 ):
+    chain_validation = validate_responsibility_chain(
+        responsibility_chain,
+        decision,
+        authority_evidence,
+        authority_boundary_receipt,
+    )
+
+    if not chain_validation.passed:
+        return DiyaVerificationResult(
+            verification_id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            decision_id=decision.decision_id,
+            status="FAILED",
+            reason=chain_validation.failed_condition or "UNAUTHORIZED_DELEGATION",
+            intent_receipt_id=None,
+        )
+
     if decision.decision != "APPROVED":
         return DiyaVerificationResult(
             verification_id=str(uuid.uuid4()),

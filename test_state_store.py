@@ -11,6 +11,7 @@ from bil.state_record import create_state_record
 from afs.commit import commit_state
 from bil.commit_record import create_commit_record
 from state_store import save_state
+from authority_fixture import create_valid_authority_fixture
 
 decision = create_decision_object(
     requestor="human-001",
@@ -26,17 +27,11 @@ decision = create_decision_object(
 
 gov = create_governance_receipt(decision)
 
-responsibility_chain = create_responsibility_chain(
-    organization="Acme Corp",
-    business_owner="Alice",
-    decision_authority="Risk Committee",
-    delegated_by="Alice",
-    delegated_to="Veridian",
-    authority_scope="Production Deployment",
-    policy_version="policy-v1",
-    ai_system="Veridian",
-    agent="Deployment Agent",
-)
+(
+    responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+) = create_valid_authority_fixture()
 
 boundary = create_boundary_receipt(
     sender="DecisionAssure",
@@ -46,7 +41,10 @@ boundary = create_boundary_receipt(
     policy_version="policy-v1",
 )
 
-verification = verify_intent(decision, gov, boundary, responsibility_chain)
+verification = verify_intent(decision, gov, boundary, responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+)
 
 intent_receipt = create_intent_receipt(boundary, verification)
 

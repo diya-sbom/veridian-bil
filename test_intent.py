@@ -4,6 +4,7 @@ from decisionassure.responsibility_chain import create_responsibility_chain
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bvp.boundary_receipt import create_boundary_receipt
+from authority_fixture import create_valid_authority_fixture
 
 decision = create_decision_object(
     requestor="human-001",
@@ -19,17 +20,11 @@ decision = create_decision_object(
 
 gov = create_governance_receipt(decision)
 
-responsibility_chain = create_responsibility_chain(
-    organization="Acme Corp",
-    business_owner="Alice",
-    decision_authority="Risk Committee",
-    delegated_by="Alice",
-    delegated_to="Veridian",
-    authority_scope="Production Deployment",
-    policy_version="policy-v1",
-    ai_system="Veridian",
-    agent="Deployment Agent",
-)
+(
+    responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+) = create_valid_authority_fixture()
 
 boundary = create_boundary_receipt(
     sender="DecisionAssure",
@@ -44,6 +39,8 @@ verification = verify_intent(
     gov,
     boundary,
     responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
 )
 
 receipt = create_intent_receipt(
