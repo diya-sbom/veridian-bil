@@ -26,12 +26,18 @@ def verify_intent(
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
+    authority_state_evidence=None,
+    authority_state_boundary_receipt=None,
+    execution_time=None,
 ):
     chain_validation = validate_responsibility_chain(
         responsibility_chain,
         decision,
         authority_evidence,
         authority_boundary_receipt,
+        execution_time=execution_time,
+        authority_state_evidence=authority_state_evidence,
+        authority_state_boundary_receipt=authority_state_boundary_receipt,
     )
 
     if not chain_validation.passed:

@@ -14,6 +14,7 @@ from state_store import save_state, load_state
 from dataclasses import replace
 from replay_verifier import verify_chain
 from authority_fixture import create_valid_authority_fixture
+from authority_state_fixture import create_authority_state_fixture
 
 
 decision = create_decision_object(
@@ -36,6 +37,12 @@ governance_receipt = create_governance_receipt(decision)
     authority_boundary_receipt,
 ) = create_valid_authority_fixture()
 
+authority_state_evidence, authority_state_boundary_receipt = create_authority_state_fixture(
+    responsibility_chain,
+    authority_evidence,
+    state="ACTIVE",
+)
+
 boundary_receipt = create_boundary_receipt(
     sender="DecisionAssure",
     receiver="Diya",
@@ -51,6 +58,8 @@ verification = verify_intent(
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
+    authority_state_evidence,
+    authority_state_boundary_receipt,
 )
 
 intent_receipt = create_intent_receipt(

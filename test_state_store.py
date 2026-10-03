@@ -12,6 +12,7 @@ from afs.commit import commit_state
 from bil.commit_record import create_commit_record
 from state_store import save_state
 from authority_fixture import create_valid_authority_fixture
+from authority_state_fixture import create_authority_state_fixture
 
 decision = create_decision_object(
     requestor="human-001",
@@ -33,6 +34,12 @@ gov = create_governance_receipt(decision)
     authority_boundary_receipt,
 ) = create_valid_authority_fixture()
 
+authority_state_evidence, authority_state_boundary_receipt = create_authority_state_fixture(
+    responsibility_chain,
+    authority_evidence,
+    state="ACTIVE",
+)
+
 boundary = create_boundary_receipt(
     sender="DecisionAssure",
     receiver="Diya",
@@ -44,7 +51,8 @@ boundary = create_boundary_receipt(
 verification = verify_intent(decision, gov, boundary, responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
-)
+    authority_state_evidence,
+    authority_state_boundary_receipt)
 
 intent_receipt = create_intent_receipt(boundary, verification)
 

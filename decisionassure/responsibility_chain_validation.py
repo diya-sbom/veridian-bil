@@ -8,6 +8,10 @@ from decisionassure.authority_delegation import (
     AuthorityDelegationEvidence,
     verify_authority_delegation_evidence,
 )
+from decisionassure.authority_state import (
+    AuthorityStateEvidence,
+    verify_authority_state_evidence,
+)
 from decisionassure.authority_scope import is_action_authorized
 from decisionassure.responsibility_chain import ResponsibilityChain
 
@@ -25,6 +29,8 @@ def validate_responsibility_chain(
     authority_evidence: AuthorityDelegationEvidence,
     authority_boundary_receipt: BoundaryReceipt,
     execution_time: Optional[datetime] = None,
+    authority_state_evidence: Optional[AuthorityStateEvidence] = None,
+    authority_state_boundary_receipt: Optional[BoundaryReceipt] = None,
 ) -> ResponsibilityChainValidationResult:
     """
     Deterministically evaluate whether recorded Responsibility Chain evidence
@@ -161,6 +167,18 @@ def validate_responsibility_chain(
             failed_condition="UNAUTHORIZED_DELEGATION",
         )
 
+    if execution_time is not None and (
+        execution_time.tzinfo is None
+        or execution_time.utcoffset() is None
+    ):
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Execution time must be timezone-aware",
+            failed_condition="BROKEN_CHAIN",
+        )
+
+    now = execution_time or datetime.now(timezone.utc)
+
     if responsibility_chain.valid_until is not None:
         try:
             valid_until = datetime.fromisoformat(
@@ -173,24 +191,12 @@ def validate_responsibility_chain(
                 failed_condition="BROKEN_CHAIN",
             )
 
-        if valid_until.tzinfo is None:
+        if valid_until.tzinfo is None or valid_until.utcoffset() is None:
             return ResponsibilityChainValidationResult(
                 passed=False,
                 reason="Authority validity timestamp must be timezone-aware",
                 failed_condition="BROKEN_CHAIN",
             )
-
-        if execution_time is not None and (
-            execution_time.tzinfo is None
-            or execution_time.utcoffset() is None
-        ):
-            return ResponsibilityChainValidationResult(
-                passed=False,
-                reason="Execution time must be timezone-aware",
-                failed_condition="BROKEN_CHAIN",
-            )
-
-        now = execution_time or datetime.now(timezone.utc)
 
         if now > valid_until:
             return ResponsibilityChainValidationResult(
@@ -198,6 +204,91 @@ def validate_responsibility_chain(
                 reason="Authority grant has expired",
                 failed_condition="EXPIRED_AUTHORITY",
             )
+
+    # Current authority state is required at execution time.
+    # Historical delegation evidence alone is insufficient.
+    if authority_state_evidence is None or authority_state_boundary_receipt is None:
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Current authority state evidence is required",
+            failed_condition="MISSING_AUTHORITY_STATE",
+        )
+
+    if not verify_authority_state_evidence(authority_state_evidence):
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Authority state evidence integrity verification failed",
+            failed_condition="INVALID_AUTHORITY_STATE",
+        )
+
+    if (
+        authority_state_evidence.authority_evidence_hash
+        != authority_evidence.evidence_hash
+        or authority_state_evidence.delegatee != authority_evidence.delegatee
+        or authority_state_evidence.authority_scope != authority_evidence.authority_scope
+        or authority_state_evidence.policy_version != authority_evidence.policy_version
+    ):
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Authority state evidence does not match delegated authority",
+            failed_condition="INVALID_AUTHORITY_STATE",
+        )
+
+    state_boundary_result = verify_boundary_receipt(
+        receipt=authority_state_boundary_receipt,
+        artifact=authority_state_evidence.to_dict(),
+        expected_sender=responsibility_chain.authority_evidence_source,
+        expected_receiver="Veridian",
+        expected_artifact_type="AUTHORITY_STATE",
+        expected_policy_version=responsibility_chain.policy_version,
+    )
+
+    if not state_boundary_result.passed:
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason=f"Authority state boundary verification failed: {state_boundary_result.message}",
+            failed_condition="INVALID_AUTHORITY_STATE",
+        )
+
+    try:
+        state_effective_at = datetime.fromisoformat(
+            authority_state_evidence.effective_at.replace("Z", "+00:00")
+        )
+    except ValueError:
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Authority state effective timestamp is invalid",
+            failed_condition="INVALID_AUTHORITY_STATE",
+        )
+
+    if state_effective_at.tzinfo is None or state_effective_at.utcoffset() is None:
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Authority state effective timestamp must be timezone-aware",
+            failed_condition="INVALID_AUTHORITY_STATE",
+        )
+
+    if state_effective_at > now:
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason="Authority state is not yet effective at execution time",
+            failed_condition="AUTHORITY_STATE_NOT_EFFECTIVE",
+        )
+
+    if authority_state_evidence.state != "ACTIVE":
+        inactive_conditions = {
+            "REVOKED": "REVOKED_AUTHORITY",
+            "SUSPENDED": "SUSPENDED_AUTHORITY",
+            "TRANSFERRED": "TRANSFERRED_AUTHORITY",
+        }
+        return ResponsibilityChainValidationResult(
+            passed=False,
+            reason=f"Authority is {authority_state_evidence.state.lower()} at execution time",
+            failed_condition=inactive_conditions.get(
+                authority_state_evidence.state,
+                "INVALID_AUTHORITY_STATE",
+            ),
+        )
 
     if not is_action_authorized(
         responsibility_chain.authority_scope,

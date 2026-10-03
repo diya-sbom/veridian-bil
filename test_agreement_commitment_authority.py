@@ -1,3 +1,4 @@
+from authority_state_fixture import create_authority_state_fixture
 from decisionassure.decision_object import create_decision_object
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.responsibility_chain import create_responsibility_chain
@@ -47,6 +48,15 @@ authority_boundary_receipt = create_boundary_receipt(
 
 
 # ------------------------------------------------------------
+authority_state_evidence, authority_state_boundary_receipt = (
+    create_authority_state_fixture(
+        responsibility_chain,
+        authority_evidence,
+        state="ACTIVE",
+        state_reference="agreement-authority-state-001",
+    )
+)
+
 # CASE 1:
 # Permission to operate the agreement system.
 # DRAFT_AGREEMENT is explicitly inside delegated scope.
@@ -80,6 +90,8 @@ draft_verification = verify_intent(
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
+    authority_state_evidence,
+    authority_state_boundary_receipt,
 )
 
 print("DRAFT:", draft_verification.to_dict())
@@ -125,6 +137,8 @@ commitment_verification = verify_intent(
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
+    authority_state_evidence,
+    authority_state_boundary_receipt,
 )
 
 commitment_intent_receipt = create_intent_receipt(
