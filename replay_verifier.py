@@ -77,6 +77,7 @@ def verify_chain(
         "boundary_receipt_hash":
             intent_receipt.boundary_receipt_hash,
         "status": intent_receipt.verification_status,
+        "verified_action": intent_receipt.verified_action,
     }
 
     expected_intent_signature = sha256_json(intent_payload)
@@ -96,6 +97,7 @@ def verify_chain(
         "intent_receipt_id":
             intent_record.intent_receipt_id,
         "status": intent_record.status,
+        "verified_action": intent_record.verified_action,
     }
 
     expected_intent_hash = sha256_json(
@@ -121,6 +123,8 @@ def verify_chain(
         == intent_receipt.decision_id
         and intent_record.intent_receipt_id
         == intent_receipt.intent_receipt_id
+        and intent_record.verified_action
+        == intent_receipt.verified_action
     )
 
     # Execution linkage

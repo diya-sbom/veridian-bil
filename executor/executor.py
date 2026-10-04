@@ -27,11 +27,21 @@ def execute_intent(intent_record):
             message="Execution blocked: intent not verified",
         )
 
+    if not getattr(intent_record, "verified_action", None):
+        return ExecutionResult(
+            execution_id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            decision_id=intent_record.decision_id,
+            status="FAILED_CLOSED",
+            action="NONE",
+            message="Execution blocked: verified action missing",
+        )
+
     return ExecutionResult(
         execution_id=str(uuid.uuid4()),
         timestamp=datetime.now(timezone.utc).isoformat(),
         decision_id=intent_record.decision_id,
         status="EXECUTED",
-        action="DEPLOY",
+        action=intent_record.verified_action,
         message="Intent executed successfully",
     )

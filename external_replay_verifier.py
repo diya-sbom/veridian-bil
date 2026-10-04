@@ -47,6 +47,7 @@ def verify_bundle(bundle):
         "decision_id": intent_receipt["decision_id"],
         "boundary_receipt_hash": intent_receipt["boundary_receipt_hash"],
         "status": intent_receipt["verification_status"],
+        "verified_action": intent_receipt.get("verified_action"),
     }
 
     expected_intent_signature = sha256_json(intent_payload)
@@ -62,6 +63,7 @@ def verify_bundle(bundle):
         "boundary_receipt_id": intent_record["boundary_receipt_id"],
         "intent_receipt_id": intent_record["intent_receipt_id"],
         "status": intent_record["status"],
+        "verified_action": intent_record.get("verified_action"),
     }
 
     expected_intent_hash = sha256_json(intent_record_payload)
@@ -82,6 +84,8 @@ def verify_bundle(bundle):
         intent_record["decision_id"] == intent_receipt["decision_id"]
         and intent_record["intent_receipt_id"]
         == intent_receipt["intent_receipt_id"]
+        and intent_record.get("verified_action")
+        == intent_receipt.get("verified_action")
     )
 
     # Execution

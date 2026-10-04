@@ -13,6 +13,7 @@ class IntentReceipt:
     boundary_receipt_hash: str
     verification_status: str
     signature: str
+    verified_action: str | None = None
 
     def to_dict(self):
         return self.__dict__
@@ -24,6 +25,7 @@ def create_intent_receipt(boundary_receipt, verification_result):
         "decision_id": verification_result.decision_id,
         "boundary_receipt_hash": boundary_receipt.current_receipt_hash,
         "status": verification_result.status,
+        "verified_action": verification_result.verified_action,
     }
 
     signature = hashlib.sha256(
@@ -37,4 +39,5 @@ def create_intent_receipt(boundary_receipt, verification_result):
         boundary_receipt_hash=boundary_receipt.current_receipt_hash,
         verification_status=verification_result.status,
         signature=signature,
+        verified_action=verification_result.verified_action,
     )

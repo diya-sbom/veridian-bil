@@ -14,6 +14,7 @@ class DiyaVerificationResult:
     status: str
     reason: str
     intent_receipt_id: str
+    verified_action: str | None = None
 
     def to_dict(self):
         return self.__dict__
@@ -82,4 +83,5 @@ def verify_intent(
         status="VERIFIED",
         reason="Intent verified",
         intent_receipt_id=intent_receipt_id,
+        verified_action=decision.intended_action,
     )

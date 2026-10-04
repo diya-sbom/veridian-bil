@@ -19,6 +19,7 @@ class IntentRecord:
 
     status: str
     signature: str
+    verified_action: str | None = None
 
     def to_dict(self):
         return self.__dict__
@@ -35,6 +36,7 @@ def create_intent_record(
         "boundary_receipt_id": boundary_receipt.receipt_id,
         "intent_receipt_id": intent_receipt.intent_receipt_id,
         "status": intent_receipt.verification_status,
+        "verified_action": intent_receipt.verified_action,
     }
 
     artifact_hash = hashlib.sha256(
@@ -58,4 +60,5 @@ def create_intent_record(
 
         status=intent_receipt.verification_status,
         signature=signature,
+        verified_action=intent_receipt.verified_action,
     )
