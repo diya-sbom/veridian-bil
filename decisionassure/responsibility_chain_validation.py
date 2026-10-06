@@ -320,6 +320,17 @@ def validate_responsibility_chain(
                 failed_condition="CUMULATIVE_AUTHORITY_EXHAUSTED",
             )
 
+    # Resource-bound authority:
+    # authority to perform an action on one governed resource does not
+    # create authority to perform the same action on another resource.
+    if authority_evidence.governed_resource is not None:
+        if decision.governed_resource != authority_evidence.governed_resource:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Requested resource is outside delegated authority",
+                failed_condition="RESOURCE_OUT_OF_SCOPE",
+            )
+
     if not is_action_authorized(
         responsibility_chain.authority_scope,
         decision.intended_action,

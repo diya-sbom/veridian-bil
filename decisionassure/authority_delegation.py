@@ -42,6 +42,7 @@ class AuthorityDelegationEvidence:
     policy_reference: str
     evidence_reference: str
     delegation_status: str
+    governed_resource: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -55,6 +56,7 @@ def create_authority_delegation_evidence(
     policy_reference: str,
     evidence_reference: str,
     delegation_status: str,
+    governed_resource: str | None = None,
 ) -> AuthorityDelegationEvidence:
     if delegation_status not in VALID_DELEGATION_STATUSES:
         raise ValueError(
@@ -72,6 +74,13 @@ def create_authority_delegation_evidence(
         "delegation_status": delegation_status,
     }
 
+    if governed_resource is not None:
+        if not isinstance(governed_resource, str) or not governed_resource.strip():
+            raise ValueError(
+                "governed_resource must be a non-empty string when provided"
+            )
+        payload["governed_resource"] = governed_resource
+
     evidence_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()
     ).hexdigest()
@@ -85,6 +94,7 @@ def create_authority_delegation_evidence(
         policy_reference=policy_reference,
         evidence_reference=evidence_reference,
         delegation_status=delegation_status,
+        governed_resource=governed_resource,
     )
 
 
@@ -100,6 +110,9 @@ def verify_authority_delegation_evidence(
         "evidence_reference": evidence.evidence_reference,
         "delegation_status": evidence.delegation_status,
     }
+
+    if evidence.governed_resource is not None:
+        payload["governed_resource"] = evidence.governed_resource
 
     recomputed_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()

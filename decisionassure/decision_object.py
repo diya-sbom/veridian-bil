@@ -34,6 +34,7 @@ class DecisionObject:
 
     requested_authority_units: int | None = None
     requested_authority_unit: str | None = None
+    governed_resource: str | None = None
     def __post_init__(self) -> None:
         if not self.decision_id.strip():
             raise ValueError("decision_id is required")
@@ -73,6 +74,12 @@ class DecisionObject:
                 "requested authority units and unit must be provided together"
             )
 
+        if self.governed_resource is not None:
+            if not isinstance(self.governed_resource, str) or not self.governed_resource.strip():
+                raise ValueError(
+                    "governed_resource must be a non-empty string when provided"
+                )
+
         if has_units:
             if (
                 isinstance(self.requested_authority_units, bool)
@@ -111,6 +118,7 @@ def create_decision_object(
     intended_state: Dict[str, Any],
     requested_authority_units: int | None = None,
     requested_authority_unit: str | None = None,
+    governed_resource: str | None = None,
 ) -> DecisionObject:
     """Create a new immutable Decision Object."""
 
@@ -128,4 +136,5 @@ def create_decision_object(
         intended_state=intended_state,
         requested_authority_units=requested_authority_units,
         requested_authority_unit=requested_authority_unit,
+        governed_resource=governed_resource,
     )
