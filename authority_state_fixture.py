@@ -10,6 +10,9 @@ def create_authority_state_fixture(
     state="ACTIVE",
     effective_at=None,
     state_reference="authority-state-001",
+    aggregate_limit=None,
+    consumed_units=None,
+    authority_unit=None,
 ):
     if effective_at is None:
         effective_at = datetime.now(timezone.utc).isoformat()
@@ -22,6 +25,9 @@ def create_authority_state_fixture(
         state=state,
         effective_at=effective_at,
         state_reference=state_reference,
+        aggregate_limit=aggregate_limit,
+        consumed_units=consumed_units,
+        authority_unit=authority_unit,
     )
 
     state_boundary_receipt = create_boundary_receipt(

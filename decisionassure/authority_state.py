@@ -47,8 +47,16 @@ class AuthorityStateEvidence:
     effective_at: str
     state_reference: str
 
+    aggregate_limit: int | None = None
+    consumed_units: int | None = None
+    authority_unit: str | None = None
     def to_dict(self):
-        return asdict(self)
+        data = asdict(self)
+        if self.aggregate_limit is None:
+            data.pop("aggregate_limit")
+            data.pop("consumed_units")
+            data.pop("authority_unit")
+        return data
 
 
 def create_authority_state_evidence(
@@ -59,6 +67,9 @@ def create_authority_state_evidence(
     state: str,
     effective_at: str,
     state_reference: str,
+    aggregate_limit: int | None = None,
+    consumed_units: int | None = None,
+    authority_unit: str | None = None,
 ) -> AuthorityStateEvidence:
     if state not in VALID_AUTHORITY_STATES:
         raise ValueError(
@@ -79,6 +90,40 @@ def create_authority_state_evidence(
     ):
         raise ValueError("effective_at must be timezone-aware")
 
+    cumulative_values = (
+        aggregate_limit,
+        consumed_units,
+        authority_unit,
+    )
+    has_any_cumulative = any(value is not None for value in cumulative_values)
+    has_all_cumulative = all(value is not None for value in cumulative_values)
+
+    if has_any_cumulative and not has_all_cumulative:
+        raise ValueError(
+            "cumulative authority fields must be provided together"
+        )
+
+    if has_all_cumulative:
+        if (
+            isinstance(aggregate_limit, bool)
+            or not isinstance(aggregate_limit, int)
+            or aggregate_limit <= 0
+        ):
+            raise ValueError("aggregate_limit must be a positive integer")
+
+        if (
+            isinstance(consumed_units, bool)
+            or not isinstance(consumed_units, int)
+            or consumed_units < 0
+        ):
+            raise ValueError("consumed_units must be a non-negative integer")
+
+        if consumed_units > aggregate_limit:
+            raise ValueError("consumed_units cannot exceed aggregate_limit")
+
+        if not isinstance(authority_unit, str) or not authority_unit.strip():
+            raise ValueError("authority_unit must be a non-empty string")
+
     payload = {
         "authority_evidence_hash": authority_evidence_hash,
         "delegatee": delegatee,
@@ -88,6 +133,15 @@ def create_authority_state_evidence(
         "effective_at": effective_at,
         "state_reference": state_reference,
     }
+
+    if aggregate_limit is not None:
+        payload.update(
+            {
+                "aggregate_limit": aggregate_limit,
+                "consumed_units": consumed_units,
+                "authority_unit": authority_unit,
+            }
+        )
 
     evidence_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()
@@ -102,12 +156,49 @@ def create_authority_state_evidence(
         state=state,
         effective_at=effective_at,
         state_reference=state_reference,
+        aggregate_limit=aggregate_limit,
+        consumed_units=consumed_units,
+        authority_unit=authority_unit,
     )
 
 
 def verify_authority_state_evidence(
     evidence: AuthorityStateEvidence,
 ) -> bool:
+    cumulative_values = (
+        evidence.aggregate_limit,
+        evidence.consumed_units,
+        evidence.authority_unit,
+    )
+
+    has_any_cumulative = any(value is not None for value in cumulative_values)
+    has_all_cumulative = all(value is not None for value in cumulative_values)
+
+    if has_any_cumulative and not has_all_cumulative:
+        return False
+
+    if has_all_cumulative:
+        if (
+            isinstance(evidence.aggregate_limit, bool)
+            or not isinstance(evidence.aggregate_limit, int)
+            or evidence.aggregate_limit <= 0
+        ):
+            return False
+
+        if (
+            isinstance(evidence.consumed_units, bool)
+            or not isinstance(evidence.consumed_units, int)
+            or evidence.consumed_units < 0
+            or evidence.consumed_units > evidence.aggregate_limit
+        ):
+            return False
+
+        if (
+            not isinstance(evidence.authority_unit, str)
+            or not evidence.authority_unit.strip()
+        ):
+            return False
+
     payload = {
         "authority_evidence_hash": evidence.authority_evidence_hash,
         "delegatee": evidence.delegatee,
@@ -117,6 +208,15 @@ def verify_authority_state_evidence(
         "effective_at": evidence.effective_at,
         "state_reference": evidence.state_reference,
     }
+
+    if evidence.aggregate_limit is not None:
+        payload.update(
+            {
+                "aggregate_limit": evidence.aggregate_limit,
+                "consumed_units": evidence.consumed_units,
+                "authority_unit": evidence.authority_unit,
+            }
+        )
 
     recomputed_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()

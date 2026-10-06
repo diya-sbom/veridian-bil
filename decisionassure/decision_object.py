@@ -32,6 +32,8 @@ class DecisionObject:
     intended_action: str
     intended_state: Dict[str, Any]
 
+    requested_authority_units: int | None = None
+    requested_authority_unit: str | None = None
     def __post_init__(self) -> None:
         if not self.decision_id.strip():
             raise ValueError("decision_id is required")
@@ -62,9 +64,39 @@ class DecisionObject:
         if not self.intended_action.strip():
             raise ValueError("intended_action is required")
 
+
+        has_units = self.requested_authority_units is not None
+        has_unit = self.requested_authority_unit is not None
+
+        if has_units != has_unit:
+            raise ValueError(
+                "requested authority units and unit must be provided together"
+            )
+
+        if has_units:
+            if (
+                isinstance(self.requested_authority_units, bool)
+                or not isinstance(self.requested_authority_units, int)
+                or self.requested_authority_units <= 0
+            ):
+                raise ValueError(
+                    "requested_authority_units must be a positive integer when provided"
+                )
+
+            if (
+                not isinstance(self.requested_authority_unit, str)
+                or not self.requested_authority_unit.strip()
+            ):
+                raise ValueError(
+                    "requested_authority_unit must be a non-empty string"
+                )
     def to_dict(self) -> Dict[str, Any]:
         """Return a serializable representation of the decision."""
-        return asdict(self)
+        data = asdict(self)
+        if self.requested_authority_units is None:
+            data.pop("requested_authority_units")
+            data.pop("requested_authority_unit")
+        return data
 
 
 def create_decision_object(
@@ -77,6 +109,8 @@ def create_decision_object(
     decision: str,
     intended_action: str,
     intended_state: Dict[str, Any],
+    requested_authority_units: int | None = None,
+    requested_authority_unit: str | None = None,
 ) -> DecisionObject:
     """Create a new immutable Decision Object."""
 
@@ -92,4 +126,6 @@ def create_decision_object(
         decision=decision,
         intended_action=intended_action,
         intended_state=intended_state,
+        requested_authority_units=requested_authority_units,
+        requested_authority_unit=requested_authority_unit,
     )

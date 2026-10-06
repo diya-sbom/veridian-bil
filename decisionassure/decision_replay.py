@@ -127,3 +127,76 @@ def replay_decision(
         passed=True,
         message="Decision replay verified",
     )
+
+
+def replay_denied_decision(
+    decision,
+    governance_receipt,
+    responsibility_chain,
+    boundary_receipt,
+    boundary_artifact,
+    authority_evidence,
+    authority_boundary_receipt,
+    authority_state_evidence,
+    authority_state_boundary_receipt,
+    execution_time,
+    expected_failed_condition,
+) -> DecisionReplayResult:
+    """
+    Independently replay a pre-execution authority denial.
+
+    The recorded denial is not treated as authority or proof.
+    Replay first verifies the preserved governance/boundary evidence,
+    then recomputes the execution-time authority result through the
+    canonical Responsibility Chain validator.
+    """
+
+    base_replay = replay_decision(
+        decision,
+        governance_receipt,
+        responsibility_chain,
+        boundary_receipt,
+        boundary_artifact,
+    )
+
+    if not base_replay.passed:
+        return base_replay
+
+    from decisionassure.responsibility_chain_validation import (
+        validate_responsibility_chain,
+    )
+
+    authority_result = validate_responsibility_chain(
+        responsibility_chain,
+        decision,
+        authority_evidence,
+        authority_boundary_receipt,
+        execution_time=execution_time,
+        authority_state_evidence=authority_state_evidence,
+        authority_state_boundary_receipt=authority_state_boundary_receipt,
+    )
+
+    if authority_result.passed:
+        return DecisionReplayResult(
+            passed=False,
+            message="Replay expected authority denial but authority validated",
+            failed_stage="authority_denial_replay",
+        )
+
+    if authority_result.failed_condition != expected_failed_condition:
+        return DecisionReplayResult(
+            passed=False,
+            message=(
+                "Recomputed authority denial does not match "
+                "the expected failed condition"
+            ),
+            failed_stage="authority_denial_replay",
+        )
+
+    return DecisionReplayResult(
+        passed=True,
+        message=(
+            "Authority denial independently reproduced: "
+            f"{authority_result.failed_condition}"
+        ),
+    )

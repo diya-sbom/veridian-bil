@@ -290,6 +290,36 @@ def validate_responsibility_chain(
             ),
         )
 
+    if decision.requested_authority_units is not None:
+        if authority_state_evidence.aggregate_limit is None:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Consumable authority was requested but no aggregate authority limit is present",
+                failed_condition="MISSING_CUMULATIVE_AUTHORITY",
+            )
+
+        if (
+            decision.requested_authority_unit
+            != authority_state_evidence.authority_unit
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Requested authority unit does not match delegated authority unit",
+                failed_condition="AUTHORITY_UNIT_MISMATCH",
+            )
+
+        remaining_units = (
+            authority_state_evidence.aggregate_limit
+            - authority_state_evidence.consumed_units
+        )
+
+        if decision.requested_authority_units > remaining_units:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Requested action exceeds remaining delegated authority",
+                failed_condition="CUMULATIVE_AUTHORITY_EXHAUSTED",
+            )
+
     if not is_action_authorized(
         responsibility_chain.authority_scope,
         decision.intended_action,
