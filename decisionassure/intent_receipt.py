@@ -41,3 +41,23 @@ def create_intent_receipt(boundary_receipt, verification_result):
         signature=signature,
         verified_action=verification_result.verified_action,
     )
+
+
+def verify_intent_receipt(receipt: IntentReceipt) -> bool:
+    payload = {
+        "decision_id": receipt.decision_id,
+        "boundary_receipt_hash": receipt.boundary_receipt_hash,
+        "status": receipt.verification_status,
+        "verified_action": receipt.verified_action,
+    }
+
+    expected_signature = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode()
+    ).hexdigest()
+
+    return (
+        receipt.verification_status == "VERIFIED"
+        and isinstance(receipt.verified_action, str)
+        and bool(receipt.verified_action.strip())
+        and receipt.signature == expected_signature
+    )

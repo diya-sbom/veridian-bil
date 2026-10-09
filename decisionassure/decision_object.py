@@ -35,6 +35,8 @@ class DecisionObject:
     requested_authority_units: int | None = None
     requested_authority_unit: str | None = None
     governed_resource: str | None = None
+    composed_from_actions: List[str] | None = None
+
     def __post_init__(self) -> None:
         if not self.decision_id.strip():
             raise ValueError("decision_id is required")
@@ -80,6 +82,19 @@ class DecisionObject:
                     "governed_resource must be a non-empty string when provided"
                 )
 
+        if self.composed_from_actions is not None:
+            if (
+                not isinstance(self.composed_from_actions, list)
+                or not self.composed_from_actions
+                or any(
+                    not isinstance(action, str) or not action.strip()
+                    for action in self.composed_from_actions
+                )
+            ):
+                raise ValueError(
+                    "composed_from_actions must be a non-empty list of non-empty strings when provided"
+                )
+
         if has_units:
             if (
                 isinstance(self.requested_authority_units, bool)
@@ -103,6 +118,8 @@ class DecisionObject:
         if self.requested_authority_units is None:
             data.pop("requested_authority_units")
             data.pop("requested_authority_unit")
+        if self.composed_from_actions is None:
+            data.pop("composed_from_actions")
         return data
 
 
@@ -119,6 +136,7 @@ def create_decision_object(
     requested_authority_units: int | None = None,
     requested_authority_unit: str | None = None,
     governed_resource: str | None = None,
+    composed_from_actions: List[str] | None = None,
 ) -> DecisionObject:
     """Create a new immutable Decision Object."""
 
@@ -137,4 +155,5 @@ def create_decision_object(
         requested_authority_units=requested_authority_units,
         requested_authority_unit=requested_authority_unit,
         governed_resource=governed_resource,
+        composed_from_actions=composed_from_actions,
     )

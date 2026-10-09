@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from bvp.boundary_receipt import BoundaryReceipt
 from bvp.verify_boundary import verify_boundary_receipt
@@ -13,6 +13,7 @@ from decisionassure.authority_state import (
     verify_authority_state_evidence,
 )
 from decisionassure.authority_scope import is_action_authorized
+from decisionassure.intent_receipt import IntentReceipt, verify_intent_receipt
 from decisionassure.responsibility_chain import ResponsibilityChain
 
 
@@ -31,6 +32,9 @@ def validate_responsibility_chain(
     execution_time: Optional[datetime] = None,
     authority_state_evidence: Optional[AuthorityStateEvidence] = None,
     authority_state_boundary_receipt: Optional[BoundaryReceipt] = None,
+    parent_authority_evidence: Optional[AuthorityDelegationEvidence] = None,
+    parent_authority_boundary_receipt: Optional[BoundaryReceipt] = None,
+    component_intent_receipts: Optional[List[IntentReceipt]] = None,
 ) -> ResponsibilityChainValidationResult:
     """
     Deterministically evaluate whether recorded Responsibility Chain evidence
@@ -122,6 +126,93 @@ def validate_responsibility_chain(
             reason="Authority delegation evidence integrity failed",
             failed_condition="UNAUTHORIZED_DELEGATION",
         )
+
+    # Delegation lineage:
+    # a child delegation must be cryptographically linked to the actual
+    # parent evidence and may not manufacture broader authority.
+    if authority_evidence.parent_authority_evidence_hash is not None:
+        if parent_authority_evidence is None:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority evidence is required for child delegation",
+                failed_condition="MISSING_PARENT_AUTHORITY_EVIDENCE",
+            )
+
+        if not verify_authority_delegation_evidence(parent_authority_evidence):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority evidence integrity failed",
+                failed_condition="INVALID_PARENT_AUTHORITY_EVIDENCE",
+            )
+
+        if parent_authority_boundary_receipt is None:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority boundary receipt is required",
+                failed_condition="MISSING_PARENT_AUTHORITY_BOUNDARY",
+            )
+
+        parent_boundary_result = verify_boundary_receipt(
+            receipt=parent_authority_boundary_receipt,
+            artifact=parent_authority_evidence.to_dict(),
+            expected_sender=responsibility_chain.authority_evidence_source,
+            expected_receiver="Veridian",
+            expected_artifact_type="AUTHORITY_DELEGATION",
+            expected_policy_version=parent_authority_evidence.policy_version,
+        )
+
+        if not parent_boundary_result.passed:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason=f"Parent authority boundary verification failed: {parent_boundary_result.message}",
+                failed_condition="INVALID_PARENT_AUTHORITY_BOUNDARY",
+            )
+
+        if (
+            authority_evidence.parent_authority_evidence_hash
+            != parent_authority_evidence.evidence_hash
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Child delegation does not reference supplied parent authority",
+                failed_condition="PARENT_AUTHORITY_MISMATCH",
+            )
+
+        if authority_evidence.delegator != parent_authority_evidence.delegatee:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Delegation lineage is not continuous",
+                failed_condition="BROKEN_DELEGATION_LINEAGE",
+            )
+
+        if authority_evidence.policy_version != parent_authority_evidence.policy_version:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Child delegation policy differs from parent authority",
+                failed_condition="PARENT_POLICY_MISMATCH",
+            )
+
+        # Until authority-scope subset semantics are explicitly modeled,
+        # child delegations must preserve the parent's exact scope.
+        if authority_evidence.authority_scope != parent_authority_evidence.authority_scope:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Child delegation exceeds or changes parent authority scope",
+                failed_condition="AUTHORITY_SCOPE_EXPANSION",
+            )
+
+        # A resource-bound parent cannot delegate authority to another
+        # resource. An unbound parent may create a narrower child binding.
+        if parent_authority_evidence.governed_resource is not None:
+            if (
+                authority_evidence.governed_resource
+                != parent_authority_evidence.governed_resource
+            ):
+                return ResponsibilityChainValidationResult(
+                    passed=False,
+                    reason="Child delegation exceeds parent resource authority",
+                    failed_condition="RESOURCE_AUTHORITY_EXPANSION",
+                )
 
     if not responsibility_chain.authority_evidence_source or not responsibility_chain.authority_evidence_source.strip():
         return ResponsibilityChainValidationResult(
@@ -329,6 +420,63 @@ def validate_responsibility_chain(
                 passed=False,
                 reason="Requested resource is outside delegated authority",
                 failed_condition="RESOURCE_OUT_OF_SCOPE",
+            )
+
+    # Authority composition:
+    # component actions must be backed by intact VERIFIED intent receipts.
+    # Even valid component authority does not manufacture authority for a
+    # consequential combined action that was never explicitly delegated.
+    if decision.composed_from_actions is not None:
+        if not component_intent_receipts:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Verified component intent receipts are required",
+                failed_condition="MISSING_COMPOSITION_EVIDENCE",
+            )
+
+        if any(
+            not verify_intent_receipt(receipt)
+            for receipt in component_intent_receipts
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Component intent receipt verification failed",
+                failed_condition="INVALID_COMPOSITION_EVIDENCE",
+            )
+
+        receipt_ids = [
+            receipt.intent_receipt_id
+            for receipt in component_intent_receipts
+        ]
+        if len(receipt_ids) != len(set(receipt_ids)):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Duplicate component intent receipts are not allowed",
+                failed_condition="DUPLICATE_COMPOSITION_EVIDENCE",
+            )
+
+        verified_component_actions = [
+            receipt.verified_action
+            for receipt in component_intent_receipts
+        ]
+        if verified_component_actions != decision.composed_from_actions:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Verified component actions do not match claimed composition",
+                failed_condition="COMPOSITION_EVIDENCE_MISMATCH",
+            )
+
+        if not is_action_authorized(
+            responsibility_chain.authority_scope,
+            decision.intended_action,
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason=(
+                    "Verified component actions do not create authority for "
+                    "the resulting consequential action"
+                ),
+                failed_condition="COMPOSED_AUTHORITY_NOT_DELEGATED",
             )
 
     if not is_action_authorized(

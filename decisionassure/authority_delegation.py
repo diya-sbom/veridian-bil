@@ -43,6 +43,7 @@ class AuthorityDelegationEvidence:
     evidence_reference: str
     delegation_status: str
     governed_resource: str | None = None
+    parent_authority_evidence_hash: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -57,6 +58,7 @@ def create_authority_delegation_evidence(
     evidence_reference: str,
     delegation_status: str,
     governed_resource: str | None = None,
+    parent_authority_evidence_hash: str | None = None,
 ) -> AuthorityDelegationEvidence:
     if delegation_status not in VALID_DELEGATION_STATUSES:
         raise ValueError(
@@ -81,6 +83,16 @@ def create_authority_delegation_evidence(
             )
         payload["governed_resource"] = governed_resource
 
+    if parent_authority_evidence_hash is not None:
+        if (
+            not isinstance(parent_authority_evidence_hash, str)
+            or not parent_authority_evidence_hash.strip()
+        ):
+            raise ValueError(
+                "parent_authority_evidence_hash must be a non-empty string when provided"
+            )
+        payload["parent_authority_evidence_hash"] = parent_authority_evidence_hash
+
     evidence_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()
     ).hexdigest()
@@ -95,6 +107,7 @@ def create_authority_delegation_evidence(
         evidence_reference=evidence_reference,
         delegation_status=delegation_status,
         governed_resource=governed_resource,
+        parent_authority_evidence_hash=parent_authority_evidence_hash,
     )
 
 
@@ -113,6 +126,11 @@ def verify_authority_delegation_evidence(
 
     if evidence.governed_resource is not None:
         payload["governed_resource"] = evidence.governed_resource
+
+    if evidence.parent_authority_evidence_hash is not None:
+        payload["parent_authority_evidence_hash"] = (
+            evidence.parent_authority_evidence_hash
+        )
 
     recomputed_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()

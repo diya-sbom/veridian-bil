@@ -30,6 +30,9 @@ def verify_intent(
     authority_state_evidence=None,
     authority_state_boundary_receipt=None,
     execution_time=None,
+    parent_authority_evidence=None,
+    parent_authority_boundary_receipt=None,
+    component_intent_receipts=None,
 ):
     chain_validation = validate_responsibility_chain(
         responsibility_chain,
@@ -39,6 +42,9 @@ def verify_intent(
         execution_time=execution_time,
         authority_state_evidence=authority_state_evidence,
         authority_state_boundary_receipt=authority_state_boundary_receipt,
+        parent_authority_evidence=parent_authority_evidence,
+        parent_authority_boundary_receipt=parent_authority_boundary_receipt,
+        component_intent_receipts=component_intent_receipts,
     )
 
     if not chain_validation.passed:
