@@ -3,6 +3,10 @@ from hashlib import sha256
 from typing import Any, Dict, Optional
 
 from bvp.boundary_receipt import BoundaryReceipt, canonical_json
+from bvp.trust_root import (
+    TrustedKeyRegistry,
+    verify_boundary_receipt_authenticity,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +24,8 @@ def verify_boundary_receipt(
     expected_artifact_type: Optional[str] = None,
     expected_policy_version: Optional[str] = None,
     expected_previous_receipt_hash: Optional[str] = None,
+    trusted_key_registry: Optional[TrustedKeyRegistry] = None,
+    require_authenticity: bool = False,
 ) -> BoundaryVerificationResult:
     """
     Independently verify deterministic properties of a Boundary Receipt.
@@ -77,6 +83,46 @@ def verify_boundary_receipt(
             passed=False,
             message="Boundary Receipt hash mismatch",
             failed_field="current_receipt_hash",
+        )
+
+    if require_authenticity:
+        if trusted_key_registry is None:
+            return BoundaryVerificationResult(
+                passed=False,
+                message="Trusted key registry is required",
+                failed_field="trusted_key_registry",
+            )
+
+        if receipt.issuer_key_id is None or receipt.issuer_signature is None:
+            return BoundaryVerificationResult(
+                passed=False,
+                message="Boundary Receipt is not cryptographically authenticated",
+                failed_field="issuer_signature",
+            )
+
+        if not verify_boundary_receipt_authenticity(
+            receipt,
+            trusted_key_registry,
+        ):
+            return BoundaryVerificationResult(
+                passed=False,
+                message="Boundary Receipt authenticity verification failed",
+                failed_field="issuer_authenticity",
+            )
+
+    elif (
+        trusted_key_registry is not None
+        and receipt.issuer_key_id is not None
+        and receipt.issuer_signature is not None
+        and not verify_boundary_receipt_authenticity(
+            receipt,
+            trusted_key_registry,
+        )
+    ):
+        return BoundaryVerificationResult(
+            passed=False,
+            message="Boundary Receipt authenticity verification failed",
+            failed_field="issuer_authenticity",
         )
 
     if expected_sender is not None and receipt.sender != expected_sender:

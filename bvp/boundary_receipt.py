@@ -62,9 +62,16 @@ class BoundaryReceipt:
     verification_status: str
     previous_receipt_hash: Optional[str]
     current_receipt_hash: str
+    issuer_key_id: Optional[str] = None
+    issuer_signature: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        if self.issuer_key_id is None:
+            data.pop("issuer_key_id")
+        if self.issuer_signature is None:
+            data.pop("issuer_signature")
+        return data
 
 
 def create_boundary_receipt(

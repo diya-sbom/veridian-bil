@@ -1,7 +1,7 @@
 from decisionassure.decision_object import create_decision_object
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.responsibility_chain import create_responsibility_chain
-from authority_fixture import create_valid_authority_fixture
+from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 from bvp.boundary_receipt import create_boundary_receipt
 from decisionassure.diya_adapter import verify_intent
@@ -24,7 +24,8 @@ gov = create_governance_receipt(decision)
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
-) = create_valid_authority_fixture()
+    trusted_key_registry,
+) = create_trusted_authority_fixture()
 
 (
     authority_state_evidence,
@@ -52,6 +53,7 @@ result = verify_intent(
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print(result)

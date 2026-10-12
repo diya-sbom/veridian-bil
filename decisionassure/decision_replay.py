@@ -142,6 +142,7 @@ def replay_denied_decision(
     execution_time,
     expected_failed_condition,
     component_intent_receipts=None,
+    trusted_key_registry=None,
 ) -> DecisionReplayResult:
     """
     Independently replay a pre-execution authority denial.
@@ -176,6 +177,7 @@ def replay_denied_decision(
         authority_state_evidence=authority_state_evidence,
         authority_state_boundary_receipt=authority_state_boundary_receipt,
         component_intent_receipts=component_intent_receipts,
+        trusted_key_registry=trusted_key_registry,
     )
 
     if authority_result.passed:

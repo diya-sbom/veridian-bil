@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from bvp.boundary_receipt import BoundaryReceipt
 from bvp.verify_boundary import verify_boundary_receipt
+from bvp.trust_root import TrustedKeyRegistry
 from decisionassure.authority_delegation import (
     AuthorityDelegationEvidence,
     verify_authority_delegation_evidence,
@@ -35,6 +36,7 @@ def validate_responsibility_chain(
     parent_authority_evidence: Optional[AuthorityDelegationEvidence] = None,
     parent_authority_boundary_receipt: Optional[BoundaryReceipt] = None,
     component_intent_receipts: Optional[List[IntentReceipt]] = None,
+    trusted_key_registry: Optional[TrustedKeyRegistry] = None,
 ) -> ResponsibilityChainValidationResult:
     """
     Deterministically evaluate whether recorded Responsibility Chain evidence
@@ -159,6 +161,8 @@ def validate_responsibility_chain(
             expected_receiver="Veridian",
             expected_artifact_type="AUTHORITY_DELEGATION",
             expected_policy_version=parent_authority_evidence.policy_version,
+            trusted_key_registry=trusted_key_registry,
+            require_authenticity=True,
         )
 
         if not parent_boundary_result.passed:
@@ -228,6 +232,8 @@ def validate_responsibility_chain(
         expected_receiver="Veridian",
         expected_artifact_type="AUTHORITY_DELEGATION",
         expected_policy_version=responsibility_chain.policy_version,
+        trusted_key_registry=trusted_key_registry,
+        require_authenticity=True,
     )
 
     if not boundary_result.passed:

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from authority_fixture import create_valid_authority_fixture
+from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 from bvp.boundary_receipt import create_boundary_receipt
 from decisionassure.decision_object import create_decision_object
@@ -15,7 +15,8 @@ from executor.executor import execute_intent
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
-) = create_valid_authority_fixture()
+    trusted_key_registry,
+) = create_trusted_authority_fixture()
 
 # Current execution-time authority state:
 # aggregate limit = 10,000 units
@@ -72,6 +73,7 @@ boundary_verification = verify_intent(
     authority_state_evidence,
     authority_state_boundary_receipt,
     execution_time=execution_time,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("BOUNDARY VERIFICATION:", boundary_verification.to_dict())
@@ -116,6 +118,7 @@ exhausted_verification = verify_intent(
     authority_state_evidence,
     authority_state_boundary_receipt,
     execution_time=execution_time,
+    trusted_key_registry=trusted_key_registry,
 )
 
 exhausted_intent_receipt = create_intent_receipt(

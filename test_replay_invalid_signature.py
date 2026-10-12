@@ -13,7 +13,7 @@ from bil.commit_record import create_commit_record
 from state_store import save_state, load_state
 from replay_verifier import verify_chain
 from dataclasses import replace
-from authority_fixture import create_valid_authority_fixture
+from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 
 decision = create_decision_object(
@@ -34,7 +34,8 @@ governance_receipt = create_governance_receipt(decision)
     responsibility_chain,
     authority_evidence,
     authority_boundary_receipt,
-) = create_valid_authority_fixture()
+    trusted_key_registry,
+) = create_trusted_authority_fixture()
 
 authority_state_evidence, authority_state_boundary_receipt = create_authority_state_fixture(
     responsibility_chain,
@@ -59,6 +60,7 @@ verification = verify_intent(
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry,
 )
 
 intent_receipt = create_intent_receipt(
