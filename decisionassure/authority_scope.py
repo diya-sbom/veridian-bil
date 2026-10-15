@@ -2,6 +2,7 @@ AUTHORITY_SCOPE_ACTION_MAP = {
     "Production Deployment": {"DEPLOY"},
     "Agreement Operations": {"DRAFT_AGREEMENT", "ROUTE_AGREEMENT"},
     "Capability Acquisition": {"ACQUIRE_PAYMENT_CAPABILITY"},
+    "Experimental Operations": {"RUN_EXPERIMENT"},
 }
 
 
