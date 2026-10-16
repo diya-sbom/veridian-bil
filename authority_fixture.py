@@ -16,6 +16,7 @@ def create_valid_authority_fixture(
     policy_reference="policy-ref-001",
     evidence_reference="authority-evidence-001",
     authority_evidence_source="AuthorityService",
+    governed_resource=None,
 ):
     responsibility_chain = create_responsibility_chain(
         organization=organization,
@@ -40,6 +41,7 @@ def create_valid_authority_fixture(
         policy_reference=policy_reference,
         evidence_reference=evidence_reference,
         delegation_status="AUTHORIZED",
+        governed_resource=governed_resource,
     )
 
     authority_boundary_receipt = create_boundary_receipt(
@@ -70,6 +72,7 @@ def create_trusted_authority_fixture(
     policy_reference="policy-ref-001",
     evidence_reference="authority-evidence-001",
     authority_evidence_source="AuthorityService",
+    governed_resource=None,
     trusted_key_registry=None,
     signing_key=None,
 ):
@@ -105,6 +108,7 @@ def create_trusted_authority_fixture(
         policy_reference=policy_reference,
         evidence_reference=evidence_reference,
         authority_evidence_source=authority_evidence_source,
+        governed_resource=governed_resource,
     )
 
     if trusted_key_registry is None:

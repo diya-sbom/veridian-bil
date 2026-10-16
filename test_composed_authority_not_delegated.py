@@ -16,6 +16,7 @@ from test_capability_acquisition_no_authority_expansion import (
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry,
 )
 
 from test_agreement_commitment_authority import (
@@ -109,6 +110,7 @@ composed_verification = verify_intent(
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry,
     component_intent_receipts=component_receipts,
 )
 

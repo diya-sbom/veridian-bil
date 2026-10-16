@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
 from decisionassure.decision_object import create_decision_object
 from decisionassure.governance_receipt import create_governance_receipt
-from decisionassure.responsibility_chain import create_responsibility_chain
-from decisionassure.authority_delegation import create_authority_delegation_evidence
+from authority_fixture import create_trusted_authority_fixture
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
@@ -20,7 +19,12 @@ from authority_state_fixture import create_authority_state_fixture
 # cannot silently migrate to service-B.
 # --------------------------------------------------
 
-responsibility_chain = create_responsibility_chain(
+(
+    responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+    trusted_key_registry,
+) = create_trusted_authority_fixture(
     organization="Acme Corp",
     business_owner="Alice",
     decision_authority="Operations Committee",
@@ -33,25 +37,7 @@ responsibility_chain = create_responsibility_chain(
     policy_reference="policy-ref-deploy-001",
     evidence_reference="authority-evidence-deploy-001",
     authority_evidence_source="AuthorityService",
-)
-
-authority_evidence = create_authority_delegation_evidence(
-    delegator="Alice",
-    delegatee="Veridian",
-    authority_scope="Production Deployment",
-    policy_version="policy-v1",
-    policy_reference="policy-ref-deploy-001",
-    evidence_reference="authority-evidence-deploy-001",
-    delegation_status="AUTHORIZED",
     governed_resource="service-A",
-)
-
-authority_boundary_receipt = create_boundary_receipt(
-    sender="AuthorityService",
-    receiver="Veridian",
-    artifact_type="AUTHORITY_DELEGATION",
-    artifact=authority_evidence.to_dict(),
-    policy_version="policy-v1",
 )
 
 authority_state_evidence, authority_state_boundary_receipt = (
@@ -102,6 +88,7 @@ authorized_verification = verify_intent(
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry,
 )
 
 authorized_intent_receipt = create_intent_receipt(
@@ -171,6 +158,7 @@ wrong_resource_verification = verify_intent(
     authority_boundary_receipt,
     authority_state_evidence,
     authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry,
     execution_time=execution_time,
 )
 
