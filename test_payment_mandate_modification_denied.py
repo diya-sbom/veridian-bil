@@ -7,6 +7,8 @@ from bvp.boundary_receipt import create_boundary_receipt
 from executor.executor import execute_intent
 from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from bvp.trust_root import sign_payload
 
 
 # Trusted, signed authority is explicitly limited to:
@@ -39,6 +41,42 @@ from authority_state_fixture import create_authority_state_fixture
     authority_unit="USD",
     state_reference="payment-mandate-state-001",
 )
+
+
+
+# A trusted identity credential proves who the agent is.
+# It does not grant or expand consequential authority.
+identity_issuer = "AgentIdentityService"
+identity_subject = "trusted-payment-agent-001"
+
+identity_private_key = Ed25519PrivateKey.generate()
+identity_key_id = trusted_key_registry.register(
+    identity_issuer,
+    identity_private_key.public_key(),
+)
+
+identity_payload = {
+    "credential_type": "AGENT_IDENTITY",
+    "issuer": identity_issuer,
+    "subject": identity_subject,
+}
+
+identity_signature = sign_payload(
+    identity_private_key,
+    identity_payload,
+)
+
+identity_verified = trusted_key_registry.verify(
+    identity_issuer,
+    identity_key_id,
+    identity_payload,
+    identity_signature,
+)
+
+assert identity_verified is True
+assert identity_payload["subject"] == "trusted-payment-agent-001"
+
+print("TRUSTED AGENT IDENTITY: VERIFIED")
 
 
 def verify_and_execute(decision):
