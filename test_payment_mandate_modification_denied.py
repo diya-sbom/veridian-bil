@@ -78,6 +78,39 @@ assert identity_payload["subject"] == "trusted-payment-agent-001"
 
 print("TRUSTED AGENT IDENTITY: VERIFIED")
 
+# A trusted reputation attestation may describe confidence in the agent,
+# but reputation must never manufacture consequential authority.
+reputation_issuer = "AgentReputationService"
+reputation_private_key = Ed25519PrivateKey.generate()
+reputation_key_id = trusted_key_registry.register(
+    reputation_issuer,
+    reputation_private_key.public_key(),
+)
+
+reputation_payload = {
+    "attestation_type": "AGENT_REPUTATION",
+    "issuer": reputation_issuer,
+    "subject": identity_subject,
+    "reputation_score": 0.99,
+}
+
+reputation_signature = sign_payload(
+    reputation_private_key,
+    reputation_payload,
+)
+
+reputation_verified = trusted_key_registry.verify(
+    reputation_issuer,
+    reputation_key_id,
+    reputation_payload,
+    reputation_signature,
+)
+
+assert reputation_verified is True
+assert reputation_payload["reputation_score"] == 0.99
+
+print("HIGH AGENT REPUTATION: VERIFIED")
+
 
 def verify_and_execute(decision):
     gov = create_governance_receipt(decision)
@@ -181,6 +214,6 @@ assert modified_execution.action == "NONE"
 assert modified_execution.message == "Execution blocked: intent not verified"
 
 print(
-    "PASS: valid identity and signed payment mandate did not authorize "
+    "PASS: valid identity, high reputation, and signed payment mandate did not authorize "
     "a transaction amount outside the mandate"
 )
