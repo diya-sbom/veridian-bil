@@ -102,6 +102,26 @@ This phase is complete only when:
 
 Possession of capability is not proof of authority.
 
+## Derived Capability After Configuration Rollback or Revocation
+
+Adversarial validation class:
+
+`DERIVED_CAPABILITY_SURVIVES_CONFIGURATION_ROLLBACK`
+
+Veridian must not treat possession of a derived capability, token, credential, or previously acquired execution path as continuing authority after the underlying authority condition has been denied, rolled back, or revoked.
+
+Two validation proofs currently establish this boundary:
+
+1. Unauthorized derived-capability path fails closed.
+   An attempted internal configuration change outside delegated authority is denied with `OUT_OF_SCOPE`, produces no executable intent, produces no derived token or confidential-data access, and the denial is independently replayable.
+   Proof commit: `89c082b`.
+
+2. Already-issued derived capability does not survive authority revocation.
+   A credential may remain physically present after issuance, but when the underlying authority state becomes `REVOKED`, a subsequent protected action fails with `REVOKED_AUTHORITY`, execution fails closed, and replay independently reproduces the denial.
+   Proof commit: `e5efe4b`.
+
+These proofs validate existing authority-enforcement behavior. They do not introduce a credential lifecycle, token revocation system, secrets manager, or IAM architecture into Veridian.
+
 ## Authority Scope to Intended Action
 
 Authority scope is evaluated against the intended action using an explicit,
