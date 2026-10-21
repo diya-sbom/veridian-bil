@@ -136,3 +136,33 @@ authority validation must fail closed with `OUT_OF_SCOPE`.
 
 Additional scope-to-action mappings require an explicit governance definition
 before they may be accepted.
+
+## Dynamic Authority Contraction
+
+Execution-time full revocation is supported and validated.
+
+Proof commit: `60d7a7a`
+
+The validation demonstrates:
+
+- authority may be valid when a task begins;
+- authority may become revoked before a later execution attempt;
+- execution-time validation uses the current authority state;
+- the previously permitted action is denied with `REVOKED_AUTHORITY`;
+- no executable intent is produced;
+- execution fails closed;
+- denial is independently replayable.
+
+### Remaining Gap: Partial Active Contraction
+
+Veridian does not yet establish a canonical mechanism for replacing or superseding an ACTIVE delegated authority with a narrower ACTIVE authority boundary during an ongoing task.
+
+Existing resource-binding and delegation-lineage rules prevent authority expansion and preserve parent resource boundaries, but they do not by themselves establish dynamic replacement of an existing ACTIVE grant.
+
+Therefore partial contraction such as:
+
+`ACTIVE authority over {A,B} -> ACTIVE authority over {A}`
+
+must not yet be claimed as validated behavior.
+
+No architecture change is introduced by this finding.
