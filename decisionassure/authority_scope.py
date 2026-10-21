@@ -3,6 +3,7 @@ AUTHORITY_SCOPE_ACTION_MAP = {
     "Agreement Operations": {"DRAFT_AGREEMENT", "ROUTE_AGREEMENT"},
     "Capability Acquisition": {"ACQUIRE_PAYMENT_CAPABILITY"},
     "Experimental Operations": {"RUN_EXPERIMENT"},
+    "Industrial Inspection": {"INSPECT_EQUIPMENT"},
     "Payment Operations": {"EXECUTE_PAYMENT"},
 }
 
