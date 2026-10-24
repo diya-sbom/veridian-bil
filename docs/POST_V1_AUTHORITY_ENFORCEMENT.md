@@ -166,3 +166,57 @@ Therefore partial contraction such as:
 must not yet be claimed as validated behavior.
 
 No architecture change is introduced by this finding.
+
+## Execution-Time Revalidation Gap
+
+A newly reproduced validation case shows that a previously VERIFIED IntentRecord can still execute after its underlying authority has been revoked.
+
+Observed sequence:
+
+- Payment authority is ACTIVE.
+- Exact `EXECUTE_PAYMENT` intent is VERIFIED.
+- IntentReceipt and IntentRecord are created.
+- Authority later becomes `REVOKED`.
+- The original, unchanged VERIFIED IntentRecord is presented to the executor.
+- The current executor returns `EXECUTED`.
+
+This exposes an authorization-to-execution time-of-check/time-of-use gap.
+
+Principle:
+
+`previously verified authorization != current execution authority`
+
+A valid signed or verified authorization record must not become a bearer capability that survives revocation.
+
+Required future invariant:
+
+- authority must still be current at the execution boundary;
+- revoked, expired, exhausted, or contracted authority must block execution;
+- no unauthorized resulting state may occur;
+- denial evidence must remain independently replayable.
+
+Current reproducer:
+
+`test_stale_verified_payment_after_revocation.py`
+
+The original reproducer intentionally demonstrates the unsafe direct-executor behavior.
+
+A guarded execution boundary is now implemented in:
+
+`executor/guarded_execution.py`
+
+Validation demonstrates both directions:
+
+- current ACTIVE authority is freshly revalidated and executes successfully;
+- the same previously VERIFIED action, after authority becomes REVOKED, is denied with `REVOKED_AUTHORITY`;
+- the resulting execution fails closed with no executable action.
+
+Regression proof:
+
+`test_guarded_execution_revocation.py`
+
+Remaining enforcement gap:
+
+The low-level `execute_intent()` function can still be called directly by existing callers without fresh authority revalidation. Therefore system-wide remediation is not yet complete.
+
+The guarded execution boundary must become mandatory for consequential execution, or equivalent current-authority revalidation must be enforced so that stale VERIFIED records cannot bypass revocation.
