@@ -1,7 +1,7 @@
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 def execute_with_current_authority(
@@ -53,6 +53,6 @@ def execute_with_current_authority(
         fresh_intent_receipt,
     )
 
-    execution = execute_intent(fresh_intent_record)
+    execution = _execute_verified_intent(fresh_intent_record)
 
     return verification, fresh_intent_receipt, fresh_intent_record, execution

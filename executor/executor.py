@@ -16,7 +16,7 @@ class ExecutionResult:
         return self.__dict__
 
 
-def execute_intent(intent_record):
+def _execute_verified_intent(intent_record):
     if intent_record.status != "VERIFIED":
         return ExecutionResult(
             execution_id=str(uuid.uuid4()),

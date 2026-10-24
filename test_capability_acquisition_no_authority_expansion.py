@@ -5,7 +5,7 @@ from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
 from bvp.boundary_receipt import create_boundary_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from authority_state_fixture import create_authority_state_fixture
 
 
@@ -86,7 +86,7 @@ acquire_intent_record = create_intent_record(
     acquire_intent_receipt,
 )
 
-acquire_execution = execute_intent(acquire_intent_record)
+acquire_execution = _execute_verified_intent(acquire_intent_record)
 
 print("ACQUIRE VERIFICATION:", acquire_verification.to_dict())
 print("ACQUIRE EXECUTION:", acquire_execution.to_dict())
@@ -145,7 +145,7 @@ payment_intent_record = create_intent_record(
     payment_intent_receipt,
 )
 
-payment_execution = execute_intent(payment_intent_record)
+payment_execution = _execute_verified_intent(payment_intent_record)
 
 print("PAYMENT VERIFICATION:", payment_verification.to_dict())
 print("PAYMENT EXECUTION:", payment_execution.to_dict())

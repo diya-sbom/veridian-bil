@@ -215,8 +215,31 @@ Regression proof:
 
 `test_guarded_execution_revocation.py`
 
-Remaining enforcement gap:
+Execution surface migration:
 
-The low-level `execute_intent()` function can still be called directly by existing callers without fresh authority revalidation. Therefore system-wide remediation is not yet complete.
+The former public `execute_intent()` entry point has been removed from active Python code.
 
-The guarded execution boundary must become mandatory for consequential execution, or equivalent current-authority revalidation must be enforced so that stale VERIFIED records cannot bypass revocation.
+The low-level execution primitive is now explicitly internal:
+
+`_execute_verified_intent()`
+
+Production execution routes through:
+
+`execute_with_current_authority()`
+
+which performs fresh authority validation immediately before execution.
+
+Regression validation confirms that:
+
+- current ACTIVE authority still permits legitimate execution;
+- REVOKED authority fails closed;
+- cumulative exhaustion remains enforced;
+- resource binding remains enforced;
+- adaptive retries do not expand authority;
+- derived capability does not survive revocation;
+- payment mandate limits remain enforced;
+- industrial inspection does not create shutdown authority;
+- operator instruction does not create target-owner authority;
+- replay integrity and tamper detection remain intact.
+
+The internal execution primitive remains available for low-level implementation and test use. Its Python naming convention is not itself a security boundary; consequential application execution must enter through the guarded current-authority path.

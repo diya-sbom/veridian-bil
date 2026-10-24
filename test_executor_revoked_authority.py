@@ -8,7 +8,7 @@ from decisionassure.diya_adapter import verify_intent
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 decision = create_decision_object(
@@ -81,7 +81,7 @@ intent_record = create_intent_record(
     intent_receipt,
 )
 
-execution = execute_intent(intent_record)
+execution = _execute_verified_intent(intent_record)
 
 print("VERIFICATION:", verification.to_dict())
 print("EXECUTION:", execution.to_dict())

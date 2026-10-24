@@ -5,7 +5,7 @@ from bvp.boundary_receipt import create_boundary_receipt
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from mira.state_receipt import create_state_receipt
 from bil.state_record import create_state_record
 from authority_fixture import create_trusted_authority_fixture
@@ -68,7 +68,7 @@ intent_record = create_intent_record(
     intent_receipt,
 )
 
-execution = execute_intent(
+execution = _execute_verified_intent(
     intent_record,
 )
 

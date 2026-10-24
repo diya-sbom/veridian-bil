@@ -6,7 +6,7 @@ from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
 from bvp.boundary_receipt import create_boundary_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from authority_state_fixture import create_authority_state_fixture
 
 
@@ -102,7 +102,7 @@ authorized_intent_record = create_intent_record(
     authorized_intent_receipt,
 )
 
-authorized_execution = execute_intent(authorized_intent_record)
+authorized_execution = _execute_verified_intent(authorized_intent_record)
 
 print("AUTHORIZED VERIFICATION:", authorized_verification.to_dict())
 print("AUTHORIZED EXECUTION:", authorized_execution.to_dict())
@@ -173,7 +173,7 @@ wrong_resource_intent_record = create_intent_record(
     wrong_resource_intent_receipt,
 )
 
-wrong_resource_execution = execute_intent(wrong_resource_intent_record)
+wrong_resource_execution = _execute_verified_intent(wrong_resource_intent_record)
 
 print("WRONG RESOURCE VERIFICATION:", wrong_resource_verification.to_dict())
 print("WRONG RESOURCE EXECUTION:", wrong_resource_execution.to_dict())

@@ -7,7 +7,7 @@ from decisionassure.intent_receipt import create_intent_receipt
 from decisionassure.decision_replay import replay_denied_decision
 from bil.intent_record import create_intent_record
 from bvp.boundary_receipt import create_boundary_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 
@@ -103,7 +103,7 @@ configuration_intent_record = create_intent_record(
     configuration_intent_receipt,
 )
 
-configuration_execution = execute_intent(configuration_intent_record)
+configuration_execution = _execute_verified_intent(configuration_intent_record)
 
 print(
     "CONFIGURATION VERIFICATION:",

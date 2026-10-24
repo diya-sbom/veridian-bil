@@ -8,7 +8,7 @@ from decisionassure.intent_receipt import create_intent_receipt
 from decisionassure.decision_replay import replay_denied_decision
 from bil.intent_record import create_intent_record
 from bvp.boundary_receipt import create_boundary_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from authority_state_fixture import create_authority_state_fixture
 
 
@@ -94,7 +94,7 @@ def verify_and_execute(decision):
         intent_receipt,
     )
 
-    execution = execute_intent(intent_record)
+    execution = _execute_verified_intent(intent_record)
 
     return gov, boundary, verification, execution
 

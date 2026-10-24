@@ -9,7 +9,7 @@ from decisionassure.decision_replay import replay_denied_decision
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.intent_receipt import create_intent_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 (
@@ -81,7 +81,7 @@ def verify_and_execute(decision):
         intent_receipt,
     )
 
-    execution = execute_intent(intent_record)
+    execution = _execute_verified_intent(intent_record)
 
     return gov, boundary, verification, execution
 

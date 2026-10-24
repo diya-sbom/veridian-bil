@@ -7,7 +7,7 @@ from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 # Existing valid delegated authority.
@@ -132,7 +132,7 @@ exhausted_intent_record = create_intent_record(
     exhausted_intent_receipt,
 )
 
-exhausted_execution = execute_intent(exhausted_intent_record)
+exhausted_execution = _execute_verified_intent(exhausted_intent_record)
 
 print("EXHAUSTED VERIFICATION:", exhausted_verification.to_dict())
 print("EXHAUSTED EXECUTION:", exhausted_execution.to_dict())

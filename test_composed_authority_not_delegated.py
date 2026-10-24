@@ -7,7 +7,7 @@ from decisionassure.intent_receipt import (
 )
 from bil.intent_record import create_intent_record
 from bvp.boundary_receipt import create_boundary_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 from test_capability_acquisition_no_authority_expansion import (
     acquire_intent_receipt,
@@ -125,7 +125,7 @@ composed_intent_record = create_intent_record(
     composed_intent_receipt,
 )
 
-composed_execution = execute_intent(composed_intent_record)
+composed_execution = _execute_verified_intent(composed_intent_record)
 
 print("COMPOSED VERIFICATION:", composed_verification.to_dict())
 print("COMPOSED EXECUTION:", composed_execution.to_dict())

@@ -6,7 +6,7 @@ from bvp.boundary_receipt import create_boundary_receipt
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 # Dedicated authority for operating an agreement system.
@@ -140,7 +140,7 @@ commitment_intent_record = create_intent_record(
     commitment_intent_receipt,
 )
 
-commitment_execution = execute_intent(commitment_intent_record)
+commitment_execution = _execute_verified_intent(commitment_intent_record)
 
 print("COMMITMENT:", commitment_verification.to_dict())
 print("EXECUTION:", commitment_execution.to_dict())

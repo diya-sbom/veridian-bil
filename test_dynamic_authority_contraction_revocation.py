@@ -9,7 +9,7 @@ from decisionassure.decision_replay import replay_denied_decision
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.intent_receipt import create_intent_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 (
@@ -105,7 +105,7 @@ initial_intent_record = create_intent_record(
     initial_intent_receipt,
 )
 
-initial_execution = execute_intent(initial_intent_record)
+initial_execution = _execute_verified_intent(initial_intent_record)
 
 print("INITIAL VERIFICATION:", initial_verification.to_dict())
 print("INITIAL EXECUTION:", initial_execution.to_dict())
@@ -155,7 +155,7 @@ post_revocation_intent_record = create_intent_record(
     post_revocation_intent_receipt,
 )
 
-post_revocation_execution = execute_intent(
+post_revocation_execution = _execute_verified_intent(
     post_revocation_intent_record
 )
 

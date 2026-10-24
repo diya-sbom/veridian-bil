@@ -5,7 +5,7 @@ from bvp.boundary_receipt import create_boundary_receipt
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 
@@ -59,7 +59,7 @@ intent_record = create_intent_record(
     boundary,
     intent_receipt,
 )
-execution = execute_intent(intent_record)
+execution = _execute_verified_intent(intent_record)
 
 print(execution)
 print(execution.to_dict())

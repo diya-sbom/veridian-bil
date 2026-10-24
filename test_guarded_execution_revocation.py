@@ -8,7 +8,7 @@ from decisionassure.decision_object import create_decision_object
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.intent_receipt import create_intent_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 from executor.guarded_execution import execute_with_current_authority
 
 

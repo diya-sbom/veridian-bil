@@ -8,7 +8,7 @@ from decisionassure.decision_object import create_decision_object
 from decisionassure.diya_adapter import verify_intent
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.intent_receipt import create_intent_receipt
-from executor.executor import execute_intent
+from executor.executor import _execute_verified_intent
 
 
 (
@@ -114,7 +114,7 @@ assert revoked_state.state == "REVOKED"
 
 # Critical adversarial step:
 # present the OLD, untouched VERIFIED IntentRecord directly to executor.
-execution = execute_intent(intent_record)
+execution = _execute_verified_intent(intent_record)
 
 print("POST-REVOCATION STALE EXECUTION:", execution.to_dict())
 
