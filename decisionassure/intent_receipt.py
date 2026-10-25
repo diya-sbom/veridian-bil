@@ -86,28 +86,3 @@ def verify_denial_receipt(receipt: IntentReceipt) -> bool:
         and receipt.verified_action is None
         and receipt.signature == expected_signature
     )
-
-
-def verify_denial_receipt(receipt: IntentReceipt) -> bool:
-    """
-    Verify the integrity of a FAILED intent receipt.
-
-    A valid denial receipt proves that a specific intent was denied.
-    It does not authorize execution.
-    """
-    payload = {
-        "decision_id": receipt.decision_id,
-        "boundary_receipt_hash": receipt.boundary_receipt_hash,
-        "status": receipt.verification_status,
-        "verified_action": receipt.verified_action,
-    }
-
-    expected_signature = hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode()
-    ).hexdigest()
-
-    return (
-        receipt.verification_status == "FAILED"
-        and receipt.verified_action is None
-        and receipt.signature == expected_signature
-    )

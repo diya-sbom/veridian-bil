@@ -243,3 +243,29 @@ Regression validation confirms that:
 - replay integrity and tamper detection remain intact.
 
 The internal execution primitive remains available for low-level implementation and test use. Its Python naming convention is not itself a security boundary; consequential application execution must enter through the guarded current-authority path.
+
+## Missing-evidence commitment gap
+
+Adversarial validation identified a downstream integrity gap after execution denial.
+
+Reproducer:
+
+`test_missing_evidence_commit_gap.py`
+
+Observed sequence:
+
+- execution status is `FAILED_CLOSED`;
+- `create_state_receipt()` still produces a state receipt with `verification_status="VERIFIED"`;
+- `create_state_record()` preserves that apparent VERIFIED state;
+- `commit_state()` returns a receipt with `committed=True`.
+
+This demonstrates that successful pre-execution authority enforcement alone is insufficient if downstream evidence and commitment layers can manufacture an apparent valid state transition after execution was denied.
+
+Required invariant:
+
+- a FAILED_CLOSED execution must never produce VERIFIED state evidence;
+- missing, suppressed, delayed, or incomplete mandatory evidence must block commitment;
+- commitment must depend on valid execution-linked evidence rather than caller-supplied state alone;
+- denial or missing-evidence outcomes must remain independently verifiable.
+
+This is a confirmed enforcement/evidence-integrity gap and requires remediation.
