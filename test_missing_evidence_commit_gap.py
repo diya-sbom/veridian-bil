@@ -43,12 +43,12 @@ print("COMMIT:", commit.to_dict())
 
 assert failed_execution.status == "FAILED_CLOSED"
 
-# Reproducer expectations: these demonstrate the current unsafe behavior.
-assert state_receipt.verification_status == "VERIFIED"
-assert state_record.verification_status == "VERIFIED"
-assert commit.committed is True
+# Remediation expectations: failed execution must propagate fail-closed.
+assert state_receipt.verification_status == "FAILED"
+assert state_record.verification_status == "FAILED"
+assert commit.committed is False
 
 print(
-    "GAP CONFIRMED: FAILED_CLOSED execution still produced "
-    "VERIFIED state evidence and committed=True"
+    "PASS: FAILED_CLOSED execution produced FAILED state evidence "
+    "and commitment was blocked"
 )

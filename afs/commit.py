@@ -46,7 +46,7 @@ def commit_state(state_record):
         state_record_id=state_record.state_record_id,
         execution_id=state_record.execution_id,
 
-        committed=True,
+        committed=(state_record.verification_status == "VERIFIED"),
 
         commit_hash=commit_hash,
         signature=signature,

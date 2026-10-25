@@ -268,4 +268,20 @@ Required invariant:
 - commitment must depend on valid execution-linked evidence rather than caller-supplied state alone;
 - denial or missing-evidence outcomes must remain independently verifiable.
 
-This is a confirmed enforcement/evidence-integrity gap and requires remediation.
+This gap was reproduced and remediated.
+
+Remediation:
+
+- `create_state_receipt()` now derives state verification status from the execution result;
+- only `EXECUTED` execution produces `verification_status="VERIFIED"`;
+- failed or incomplete execution evidence produces `verification_status="FAILED"`;
+- `commit_state()` independently requires a VERIFIED state record before returning `committed=True`;
+- non-VERIFIED state evidence therefore produces `committed=False`.
+
+Regression validation confirms both directions:
+
+- legitimate EXECUTED execution still produces VERIFIED state evidence and commits successfully;
+- FAILED_CLOSED execution produces FAILED state evidence and commitment is blocked;
+- replay of the legitimate committed path remains VERIFIED.
+
+The original reproducer remains as a regression proof of the fail-closed invariant.

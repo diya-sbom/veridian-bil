@@ -28,12 +28,18 @@ def create_state_receipt(execution_result, state):
         (execution_result.execution_id + state_hash).encode()
     ).hexdigest()
 
+    verification_status = (
+        "VERIFIED"
+        if getattr(execution_result, "status", None) == "EXECUTED"
+        else "FAILED"
+    )
+
     return StateReceipt(
         state_receipt_id=str(uuid.uuid4()),
         timestamp=datetime.now(timezone.utc).isoformat(),
         execution_id=execution_result.execution_id,
         state_hash=state_hash,
         state=state,
-        verification_status="VERIFIED",
+        verification_status=verification_status,
         signature=signature,
     )
