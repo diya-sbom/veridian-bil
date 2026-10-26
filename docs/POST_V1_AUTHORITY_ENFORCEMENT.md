@@ -312,4 +312,24 @@ Required invariant:
 - invalid, missing, or unverifiable StateRecord evidence must produce `committed=False`;
 - replay verification remains defense-in-depth and must not be the first point at which forged evidence is detected.
 
-This is a confirmed live-commit evidence-integrity gap and requires remediation.
+This gap was reproduced and remediated at the live AFS commitment boundary.
+
+Remediation:
+
+- `commit_state()` now requires the `StateRecord`, matching `StateReceipt`, and execution evidence;
+- the StateReceipt state hash and signature are validated before commitment;
+- StateReceipt execution linkage must match the supplied execution;
+- execution must have status `EXECUTED`;
+- StateRecord integrity is independently recomputed and validated;
+- StateRecord-to-StateReceipt execution, receipt-ID, state-hash, and verification-status linkage must agree;
+- missing, forged, invalid, or unverifiable evidence produces `committed=False`;
+- a caller-supplied `verification_status="VERIFIED"` can no longer substitute for mandatory evidence.
+
+Regression validation confirms:
+
+- legitimate execution evidence still commits successfully;
+- failed execution evidence remains blocked;
+- omitted upstream evidence with a forged VERIFIED StateRecord is blocked;
+- replay and tamper-detection behavior remain intact.
+
+The current execution object is not cryptographically authenticated, so this remediation establishes mandatory live evidence integrity and linkage, not a cryptographic trust root for execution itself.

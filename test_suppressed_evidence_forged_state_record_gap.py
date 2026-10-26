@@ -17,7 +17,7 @@ forged_state_record = StateRecord(
     signature="invalid-forged-signature",
 )
 
-commit = commit_state(forged_state_record)
+commit = commit_state(forged_state_record, None, None)
 
 print("FORGED STATE RECORD:", forged_state_record.to_dict())
 print("COMMIT:", commit.to_dict())
@@ -25,10 +25,10 @@ print("COMMIT:", commit.to_dict())
 assert forged_state_record.verification_status == "VERIFIED"
 assert forged_state_record.signature == "invalid-forged-signature"
 
-# Reproducer expectation: this demonstrates current unsafe behavior.
-assert commit.committed is True
+# Remediation expectation: missing mandatory evidence must fail closed.
+assert commit.committed is False
 
 print(
-    "GAP CONFIRMED: suppressed mandatory evidence was replaced by a "
-    "caller-supplied VERIFIED StateRecord and AFS committed it"
+    "PASS: caller-supplied VERIFIED StateRecord could not replace "
+    "missing mandatory evidence; commitment was blocked"
 )

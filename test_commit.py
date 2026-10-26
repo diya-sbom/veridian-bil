@@ -88,6 +88,8 @@ state_record = create_state_record(
 
 commit = commit_state(
     state_record,
+    state_receipt,
+    execution,
 )
 
 print(commit)

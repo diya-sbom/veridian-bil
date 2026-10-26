@@ -71,7 +71,7 @@ state_receipt = create_state_receipt(execution, state)
 
 state_record = create_state_record(state_receipt)
 
-commit = commit_state(state_record)
+commit = commit_state(state_record, state_receipt, execution)
 
 commit_record = create_commit_record(commit)
 
