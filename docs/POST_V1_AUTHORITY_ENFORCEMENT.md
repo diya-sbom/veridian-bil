@@ -285,3 +285,31 @@ Regression validation confirms both directions:
 - replay of the legitimate committed path remains VERIFIED.
 
 The original reproducer remains as a regression proof of the fail-closed invariant.
+
+## Suppressed-evidence forged StateRecord gap
+
+Adversarial validation identified a second downstream integrity gap.
+
+Reproducer:
+
+`test_suppressed_evidence_forged_state_record_gap.py`
+
+Observed sequence:
+
+- mandatory upstream execution/state evidence is absent;
+- a caller supplies a forged `StateRecord`;
+- the forged record claims `verification_status="VERIFIED"`;
+- the record carries an invalid fabricated signature;
+- `commit_state()` trusts the verification status field and returns `committed=True`.
+
+This demonstrates that propagating FAILED execution status is not sufficient. The commitment boundary must independently validate the integrity and provenance of the state evidence presented to it.
+
+Required invariant:
+
+- missing mandatory evidence must never be replaceable by caller-supplied VERIFIED metadata;
+- AFS must not trust `verification_status` alone;
+- StateRecord integrity must be verified before commitment;
+- invalid, missing, or unverifiable StateRecord evidence must produce `committed=False`;
+- replay verification remains defense-in-depth and must not be the first point at which forged evidence is detected.
+
+This is a confirmed live-commit evidence-integrity gap and requires remediation.
