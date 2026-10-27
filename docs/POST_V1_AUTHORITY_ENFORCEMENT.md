@@ -333,3 +333,32 @@ Regression validation confirms:
 - replay and tamper-detection behavior remain intact.
 
 The current execution object is not cryptographically authenticated, so this remediation establishes mandatory live evidence integrity and linkage, not a cryptographic trust root for execution itself.
+
+## Forged execution evidence commitment gap
+
+Adversarial validation identified a third downstream integrity gap.
+
+Reproducer:
+
+`test_forged_executed_evidence_commit_gap.py`
+
+Observed sequence:
+
+- no genuine executor invocation occurs;
+- a caller constructs an `ExecutionResult` claiming `status="EXECUTED"`;
+- `create_state_receipt()` treats the fabricated execution as successful;
+- the resulting StateReceipt and StateRecord are internally self-consistent;
+- the live AFS evidence-linkage checks accept the fabricated execution object;
+- `commit_state()` returns `committed=True`.
+
+This demonstrates that mandatory execution-linked evidence is insufficient if the execution evidence itself has no authenticity root.
+
+Required invariant:
+
+- downstream commitment must not trust a caller-constructible `EXECUTED` assertion;
+- execution evidence used for commitment must be authenticated;
+- fabricated execution evidence must fail before VERIFIED state evidence can be produced;
+- execution identity, action, decision linkage, and execution outcome must be bound to authenticated evidence;
+- replay and live commitment must validate the same authenticated execution semantics.
+
+This is a confirmed execution-evidence authenticity gap. Architecture remediation should be evaluated after preserving this proof.
