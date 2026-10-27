@@ -16,6 +16,9 @@ from authority_fixture import create_trusted_authority_fixture
 from authority_state_fixture import create_authority_state_fixture
 
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from bvp.trust_root import TrustedKeyRegistry
+from executor.execution_evidence import authenticate_execution_result
 decision = create_decision_object(
     requestor="human-001",
     authority="Risk Committee",
@@ -75,6 +78,19 @@ intent_record = create_intent_record(
 
 execution = _execute_verified_intent(intent_record)
 
+execution_private_key = Ed25519PrivateKey.generate()
+execution_trusted_key_registry = TrustedKeyRegistry()
+execution_trusted_key_registry.register(
+    "VeridianExecutor",
+    execution_private_key.public_key(),
+)
+
+execution_evidence = authenticate_execution_result(
+    execution,
+    "VeridianExecutor",
+    execution_private_key,
+)
+
 resulting_state = {
     "status": "ACTIVE",
     "version": "1.0.0",
@@ -84,6 +100,8 @@ resulting_state = {
 state_receipt = create_state_receipt(
     execution,
     resulting_state,
+    execution_evidence,
+    execution_trusted_key_registry,
 )
 
 state_record = create_state_record(
@@ -94,6 +112,8 @@ commit = commit_state(
     state_record,
     state_receipt,
     execution,
+    execution_evidence,
+    execution_trusted_key_registry,
 )
 
 commit_record = create_commit_record(

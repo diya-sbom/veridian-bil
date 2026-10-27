@@ -19,7 +19,14 @@ class StateReceipt:
         return self.__dict__
 
 
-def create_state_receipt(execution_result, state):
+def create_state_receipt(
+    execution_result,
+    state,
+    execution_evidence=None,
+    trusted_key_registry=None,
+):
+    from executor.execution_evidence import verify_execution_evidence
+
     state_hash = hashlib.sha256(
         json.dumps(state, sort_keys=True).encode()
     ).hexdigest()
@@ -28,9 +35,22 @@ def create_state_receipt(execution_result, state):
         (execution_result.execution_id + state_hash).encode()
     ).hexdigest()
 
+    execution_authenticated = (
+        execution_evidence is not None
+        and trusted_key_registry is not None
+        and verify_execution_evidence(
+            execution_evidence,
+            execution_result,
+            trusted_key_registry,
+        )
+    )
+
     verification_status = (
         "VERIFIED"
-        if getattr(execution_result, "status", None) == "EXECUTED"
+        if (
+            getattr(execution_result, "status", None) == "EXECUTED"
+            and execution_authenticated
+        )
         else "FAILED"
     )
 

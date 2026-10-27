@@ -41,13 +41,11 @@ print("STATE RECORD:", state_record.to_dict())
 print("COMMIT:", commit.to_dict())
 
 assert forged_execution.status == "EXECUTED"
-assert state_receipt.verification_status == "VERIFIED"
-assert state_record.verification_status == "VERIFIED"
-
-# Reproducer expectation: current execution evidence has no authenticity root.
-assert commit.committed is True
+assert state_receipt.verification_status == "FAILED"
+assert state_record.verification_status == "FAILED"
+assert commit.committed is False
 
 print(
-    "GAP CONFIRMED: caller-fabricated EXECUTED evidence satisfied "
-    "the live evidence chain and produced committed=True"
+    "PASS: caller-fabricated EXECUTED evidence failed closed "
+    "before VERIFIED state evidence and commitment"
 )

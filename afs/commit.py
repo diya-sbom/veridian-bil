@@ -22,7 +22,15 @@ class CommitReceipt:
         return self.__dict__
 
 
-def commit_state(state_record, state_receipt, execution):
+def commit_state(
+    state_record,
+    state_receipt,
+    execution,
+    execution_evidence=None,
+    trusted_key_registry=None,
+):
+    from executor.execution_evidence import verify_execution_evidence
+
     state_receipt_hash = hashlib.sha256(
         json.dumps(state_receipt.state, sort_keys=True).encode()
     ).hexdigest() if state_receipt is not None else None
@@ -60,8 +68,19 @@ def commit_state(state_record, state_receipt, execution):
         else None
     )
 
-    evidence_valid = (
+    execution_authenticated = (
         execution is not None
+        and execution_evidence is not None
+        and trusted_key_registry is not None
+        and verify_execution_evidence(
+            execution_evidence,
+            execution,
+            trusted_key_registry,
+        )
+    )
+
+    evidence_valid = (
+        execution_authenticated
         and state_receipt is not None
         and state_record is not None
         and getattr(execution, "status", None) == "EXECUTED"
