@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from decisionassure.decision_object import create_decision_object
 from decisionassure.governance_receipt import create_governance_receipt
@@ -6,10 +7,18 @@ from decisionassure.responsibility_chain import create_responsibility_chain
 from decisionassure.authority_delegation import create_authority_delegation_evidence
 from decisionassure.diya_adapter import verify_intent
 from bvp.boundary_receipt import create_boundary_receipt
+from bvp.trust_root import TrustedKeyRegistry, authenticate_boundary_receipt
 from authority_state_fixture import create_authority_state_fixture
 
 
 execution_time = datetime.now(timezone.utc)
+
+authority_signing_key = Ed25519PrivateKey.generate()
+trusted_key_registry = TrustedKeyRegistry()
+trusted_key_registry.register(
+    "AuthorityService",
+    authority_signing_key.public_key(),
+)
 
 
 # Root authority:
@@ -33,6 +42,11 @@ parent_authority_boundary = create_boundary_receipt(
     policy_version="policy-v1",
 )
 
+parent_authority_boundary = authenticate_boundary_receipt(
+    parent_authority_boundary,
+    authority_signing_key,
+)
+
 
 # ------------------------------------------------------------------
 # CASE 1: valid child delegation
@@ -54,6 +68,15 @@ valid_chain = create_responsibility_chain(
     authority_evidence_source="AuthorityService",
 )
 
+
+parent_active_state, parent_active_state_boundary = create_authority_state_fixture(
+    valid_chain,
+    parent_authority_evidence,
+    state="ACTIVE",
+    effective_at=execution_time.isoformat(),
+    state_reference="parent-state-active-001",
+)
+
 valid_child_evidence = create_authority_delegation_evidence(
     delegator="Parent-Agent",
     delegatee="Subagent-A",
@@ -72,6 +95,11 @@ valid_authority_boundary = create_boundary_receipt(
     artifact_type="AUTHORITY_DELEGATION",
     artifact=valid_child_evidence.to_dict(),
     policy_version="policy-v1",
+)
+
+valid_authority_boundary = authenticate_boundary_receipt(
+    valid_authority_boundary,
+    authority_signing_key,
 )
 
 valid_state, valid_state_boundary = create_authority_state_fixture(
@@ -117,6 +145,9 @@ valid_result = verify_intent(
     execution_time=execution_time,
     parent_authority_evidence=parent_authority_evidence,
     parent_authority_boundary_receipt=parent_authority_boundary,
+    parent_authority_state_evidence=parent_active_state,
+    parent_authority_state_boundary_receipt=parent_active_state_boundary,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("VALID CHILD DELEGATION:", valid_result.to_dict())
@@ -165,6 +196,11 @@ invalid_authority_boundary = create_boundary_receipt(
     policy_version="policy-v1",
 )
 
+invalid_authority_boundary = authenticate_boundary_receipt(
+    invalid_authority_boundary,
+    authority_signing_key,
+)
+
 invalid_state, invalid_state_boundary = create_authority_state_fixture(
     invalid_chain,
     invalid_child_evidence,
@@ -208,6 +244,9 @@ invalid_result = verify_intent(
     execution_time=execution_time,
     parent_authority_evidence=parent_authority_evidence,
     parent_authority_boundary_receipt=parent_authority_boundary,
+    parent_authority_state_evidence=parent_active_state,
+    parent_authority_state_boundary_receipt=parent_active_state_boundary,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("EXPANDED CHILD DELEGATION:", invalid_result.to_dict())
@@ -236,6 +275,7 @@ untrusted_parent_result = verify_intent(
     execution_time=execution_time,
     parent_authority_evidence=parent_authority_evidence,
     parent_authority_boundary_receipt=None,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("UNTRUSTED PARENT DELEGATION:", untrusted_parent_result.to_dict())

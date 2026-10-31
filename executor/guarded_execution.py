@@ -17,6 +17,8 @@ def execute_with_current_authority(
     trusted_key_registry,
     parent_authority_evidence=None,
     parent_authority_boundary_receipt=None,
+    parent_authority_state_evidence=None,
+    parent_authority_state_boundary_receipt=None,
     component_intent_receipts=None,
 ):
     """
@@ -38,6 +40,8 @@ def execute_with_current_authority(
         execution_time=execution_time,
         parent_authority_evidence=parent_authority_evidence,
         parent_authority_boundary_receipt=parent_authority_boundary_receipt,
+        parent_authority_state_evidence=parent_authority_state_evidence,
+        parent_authority_state_boundary_receipt=parent_authority_state_boundary_receipt,
         component_intent_receipts=component_intent_receipts,
         trusted_key_registry=trusted_key_registry,
     )

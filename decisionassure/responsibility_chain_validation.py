@@ -35,6 +35,8 @@ def validate_responsibility_chain(
     authority_state_boundary_receipt: Optional[BoundaryReceipt] = None,
     parent_authority_evidence: Optional[AuthorityDelegationEvidence] = None,
     parent_authority_boundary_receipt: Optional[BoundaryReceipt] = None,
+    parent_authority_state_evidence: Optional[AuthorityStateEvidence] = None,
+    parent_authority_state_boundary_receipt: Optional[BoundaryReceipt] = None,
     component_intent_receipts: Optional[List[IntentReceipt]] = None,
     trusted_key_registry: Optional[TrustedKeyRegistry] = None,
 ) -> ResponsibilityChainValidationResult:
@@ -300,6 +302,110 @@ def validate_responsibility_chain(
                 passed=False,
                 reason="Authority grant has expired",
                 failed_condition="EXPIRED_AUTHORITY",
+            )
+
+
+    # If authority is derived from a parent delegation, the parent authority
+    # must also remain current at execution time. Historical parent evidence
+    # alone is insufficient.
+    if parent_authority_evidence is not None:
+        if (
+            parent_authority_state_evidence is None
+            or parent_authority_state_boundary_receipt is None
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Current parent authority state evidence is required",
+                failed_condition="MISSING_PARENT_AUTHORITY_STATE",
+            )
+
+        if not verify_authority_state_evidence(parent_authority_state_evidence):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority state evidence integrity verification failed",
+                failed_condition="INVALID_PARENT_AUTHORITY_STATE",
+            )
+
+        if (
+            parent_authority_state_evidence.authority_evidence_hash
+            != parent_authority_evidence.evidence_hash
+            or parent_authority_state_evidence.delegatee
+            != parent_authority_evidence.delegatee
+            or parent_authority_state_evidence.authority_scope
+            != parent_authority_evidence.authority_scope
+            or parent_authority_state_evidence.policy_version
+            != parent_authority_evidence.policy_version
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority state evidence does not match parent delegation",
+                failed_condition="INVALID_PARENT_AUTHORITY_STATE",
+            )
+
+        parent_state_boundary_result = verify_boundary_receipt(
+            receipt=parent_authority_state_boundary_receipt,
+            artifact=parent_authority_state_evidence.to_dict(),
+            expected_sender=responsibility_chain.authority_evidence_source,
+            expected_receiver="Veridian",
+            expected_artifact_type="AUTHORITY_STATE",
+            expected_policy_version=responsibility_chain.policy_version,
+        )
+
+        if not parent_state_boundary_result.passed:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason=(
+                    "Parent authority state boundary verification failed: "
+                    f"{parent_state_boundary_result.message}"
+                ),
+                failed_condition="INVALID_PARENT_AUTHORITY_STATE",
+            )
+
+        try:
+            parent_state_effective_at = datetime.fromisoformat(
+                parent_authority_state_evidence.effective_at
+            )
+        except (TypeError, ValueError):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority state effective timestamp is invalid",
+                failed_condition="INVALID_PARENT_AUTHORITY_STATE",
+            )
+
+        if (
+            parent_state_effective_at.tzinfo is None
+            or parent_state_effective_at.utcoffset() is None
+        ):
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority state effective timestamp must be timezone-aware",
+                failed_condition="INVALID_PARENT_AUTHORITY_STATE",
+            )
+
+        if parent_state_effective_at > now:
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason="Parent authority state is not yet effective at execution time",
+                failed_condition="PARENT_AUTHORITY_STATE_NOT_EFFECTIVE",
+            )
+
+        if parent_authority_state_evidence.state != "ACTIVE":
+            inactive_conditions = {
+                "REVOKED": "REVOKED_AUTHORITY",
+                "SUSPENDED": "SUSPENDED_AUTHORITY",
+                "TRANSFERRED": "TRANSFERRED_AUTHORITY",
+            }
+            return ResponsibilityChainValidationResult(
+                passed=False,
+                reason=(
+                    "Parent authority is "
+                    f"{parent_authority_state_evidence.state.lower()} "
+                    "at execution time"
+                ),
+                failed_condition=inactive_conditions.get(
+                    parent_authority_state_evidence.state,
+                    "INVALID_PARENT_AUTHORITY_STATE",
+                ),
             )
 
     # Current authority state is required at execution time.
