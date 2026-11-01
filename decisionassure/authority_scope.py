@@ -4,6 +4,7 @@ AUTHORITY_SCOPE_ACTION_MAP = {
     "Capability Acquisition": {"ACQUIRE_PAYMENT_CAPABILITY"},
     "Experimental Operations": {"RUN_EXPERIMENT"},
     "Industrial Inspection": {"INSPECT_EQUIPMENT"},
+    "Manufacturing Operations": {"ASSEMBLE_COMPONENT"},
     "Payment Operations": {"EXECUTE_PAYMENT"},
 }
 
