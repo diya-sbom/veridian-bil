@@ -6,6 +6,8 @@ from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.responsibility_chain import create_responsibility_chain
 from decisionassure.authority_delegation import create_authority_delegation_evidence
 from decisionassure.diya_adapter import verify_intent
+from decisionassure.decision_replay import replay_denied_decision
+from executor.guarded_execution import execute_with_current_authority
 from bvp.boundary_receipt import create_boundary_receipt
 from bvp.trust_root import TrustedKeyRegistry, authenticate_boundary_receipt
 from authority_state_fixture import create_authority_state_fixture
@@ -339,4 +341,119 @@ assert post_parent_revocation_result.verified_action is None
 print(
     "PASS: revoked originating application authority invalidated "
     "the previously derived child authority at execution time"
+)
+
+
+# ================================================================
+# CASE 4B
+# PERSISTENT DELEGATION DOES NOT BECOME PERSISTENT AUTHORITY
+#
+# The child delegation artifact still exists and remains reachable.
+# That persistence must not allow it to survive revocation of the
+# originating parent authority.
+# ================================================================
+
+protected_state = {
+    "service_A_deployed": False,
+}
+
+(
+    persistent_verification,
+    persistent_receipt,
+    persistent_record,
+    persistent_execution,
+) = execute_with_current_authority(
+    valid_decision,
+    valid_gov,
+    valid_boundary,
+    valid_chain,
+    valid_child_evidence,
+    valid_authority_boundary,
+    valid_state,
+    valid_state_boundary,
+    execution_time,
+    trusted_key_registry,
+    parent_authority_evidence=parent_authority_evidence,
+    parent_authority_boundary_receipt=parent_authority_boundary,
+    parent_authority_state_evidence=parent_revoked_state,
+    parent_authority_state_boundary_receipt=parent_revoked_state_boundary,
+)
+
+print(
+    "PERSISTENT CHILD EXECUTION VERIFICATION:",
+    persistent_verification.to_dict(),
+)
+print(
+    "PERSISTENT CHILD EXECUTION:",
+    persistent_execution.to_dict(),
+)
+
+assert valid_child_evidence is not None
+assert persistent_verification.status == "FAILED"
+assert persistent_verification.reason == "REVOKED_AUTHORITY"
+assert persistent_verification.intent_receipt_id is None
+assert persistent_verification.verified_action is None
+
+assert persistent_record.status == "FAILED"
+assert persistent_record.verified_action is None
+
+assert persistent_execution.status == "FAILED_CLOSED"
+assert persistent_execution.action == "NONE"
+
+# Consequential state changes occur only after successful execution.
+if persistent_execution.status == "EXECUTED":
+    protected_state["service_A_deployed"] = True
+
+assert protected_state == {
+    "service_A_deployed": False,
+}
+
+replay_boundary = create_boundary_receipt(
+    sender="DecisionAssure",
+    receiver="Diya",
+    artifact_type="GOVERNANCE_DECISION",
+    artifact=valid_decision.to_dict(),
+    policy_version="policy-v1",
+)
+
+persistent_replay = replay_denied_decision(
+    decision=valid_decision,
+    governance_receipt=valid_gov,
+    responsibility_chain=valid_chain,
+    boundary_receipt=replay_boundary,
+    boundary_artifact=valid_decision.to_dict(),
+    authority_evidence=valid_child_evidence,
+    authority_boundary_receipt=valid_authority_boundary,
+    authority_state_evidence=valid_state,
+    authority_state_boundary_receipt=valid_state_boundary,
+    execution_time=execution_time,
+    expected_failed_condition="REVOKED_AUTHORITY",
+    trusted_key_registry=trusted_key_registry,
+    parent_authority_evidence=parent_authority_evidence,
+    parent_authority_boundary_receipt=parent_authority_boundary,
+    parent_authority_state_evidence=parent_revoked_state,
+    parent_authority_state_boundary_receipt=parent_revoked_state_boundary,
+)
+
+print(
+    "PERSISTENT DELEGATION DENIAL REPLAY:",
+    persistent_replay.to_dict(),
+)
+
+assert persistent_replay.passed is True
+assert (
+    persistent_replay.message
+    == "Authority denial independently reproduced: REVOKED_AUTHORITY"
+)
+
+print(
+    "PASS: persistent child delegation remained reachable but did not "
+    "survive revocation of its originating parent authority"
+)
+print(
+    "PASS: persistent capability did not become persistent authority; "
+    "execution failed closed with no unauthorized state change"
+)
+print(
+    "PASS: parent-revocation denial was independently reproduced"
 )

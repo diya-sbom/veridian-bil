@@ -95,11 +95,11 @@ def replay_decision(
             failed_stage="responsibility_continuity",
         )
 
-    if responsibility_chain.delegated_to != "Veridian":
+    if responsibility_chain.ai_system != "Veridian":
         return DecisionReplayResult(
             passed=False,
-            message="Authority was not delegated to Veridian",
-            failed_stage="delegation",
+            message="Responsibility Chain does not belong to Veridian",
+            failed_stage="system_binding",
         )
 
     boundary_result = verify_boundary_receipt(
@@ -143,6 +143,10 @@ def replay_denied_decision(
     expected_failed_condition,
     component_intent_receipts=None,
     trusted_key_registry=None,
+    parent_authority_evidence=None,
+    parent_authority_boundary_receipt=None,
+    parent_authority_state_evidence=None,
+    parent_authority_state_boundary_receipt=None,
 ) -> DecisionReplayResult:
     """
     Independently replay a pre-execution authority denial.
@@ -178,6 +182,10 @@ def replay_denied_decision(
         authority_state_boundary_receipt=authority_state_boundary_receipt,
         component_intent_receipts=component_intent_receipts,
         trusted_key_registry=trusted_key_registry,
+        parent_authority_evidence=parent_authority_evidence,
+        parent_authority_boundary_receipt=parent_authority_boundary_receipt,
+        parent_authority_state_evidence=parent_authority_state_evidence,
+        parent_authority_state_boundary_receipt=parent_authority_state_boundary_receipt,
     )
 
     if authority_result.passed:
