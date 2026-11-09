@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from decisionassure.approval_decision_binding import decision_binding_digest
 from decisionassure.diya_adapter import (
     DiyaVerificationResult,
     verify_intent,
@@ -107,7 +108,10 @@ def execute_with_current_authority(
             # executed; a valid approval for another decision/action/resource
             # must never be reusable.
             decision_binding_valid = (
-                human_approval_evidence.decision_id == decision.decision_id
+                human_approval_evidence.decision_binding_digest is not None
+                and human_approval_evidence.decision_binding_digest
+                == decision_binding_digest(decision)
+                and human_approval_evidence.decision_id == decision.decision_id
                 and human_approval_evidence.intended_action
                 == decision.intended_action
                 and human_approval_evidence.governed_resource

@@ -41,6 +41,7 @@ class HumanApprovalEvidence:
     approval_status: str
     approved_at: str
     human_presence_claimed: bool
+    decision_binding_digest: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -57,6 +58,7 @@ def create_human_approval_evidence(
     approval_status: str,
     approved_at: str,
     human_presence_claimed: bool,
+    decision_binding_digest: str | None = None,
 ) -> HumanApprovalEvidence:
     if approval_status not in VALID_APPROVAL_STATUSES:
         raise ValueError(
@@ -107,6 +109,15 @@ def create_human_approval_evidence(
         "human_presence_claimed": human_presence_claimed,
     }
 
+    if decision_binding_digest is not None:
+        if (
+            not isinstance(decision_binding_digest, str)
+            or len(decision_binding_digest) != 64
+            or any(c not in "0123456789abcdef" for c in decision_binding_digest)
+        ):
+            raise ValueError("Invalid decision binding digest")
+        payload["decision_binding_digest"] = decision_binding_digest
+
     evidence_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()
     ).hexdigest()
@@ -123,6 +134,7 @@ def create_human_approval_evidence(
         approval_status=approval_status,
         approved_at=approved_at,
         human_presence_claimed=human_presence_claimed,
+        decision_binding_digest=decision_binding_digest,
     )
 
 
@@ -141,6 +153,16 @@ def verify_human_approval_evidence(
         "approved_at": evidence.approved_at,
         "human_presence_claimed": evidence.human_presence_claimed,
     }
+
+    if evidence.decision_binding_digest is not None:
+        digest = evidence.decision_binding_digest
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdef" for c in digest)
+        ):
+            return False
+        payload["decision_binding_digest"] = digest
 
     recomputed_hash = sha256(
         json.dumps(payload, sort_keys=True).encode()

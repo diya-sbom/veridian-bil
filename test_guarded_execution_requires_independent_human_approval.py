@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from decisionassure.approval_decision_binding import decision_binding_digest
 from decisionassure.decision_object import create_decision_object
 from decisionassure.governance_receipt import create_governance_receipt
 from decisionassure.human_approval import create_human_approval_evidence
@@ -141,6 +142,7 @@ human_approval = create_human_approval_evidence(
     approval_status="APPROVED",
     approved_at=approved_at,
     human_presence_claimed=True,
+    decision_binding_digest=decision_binding_digest(deployment),
 )
 
 human_presence = create_human_presence_evidence(
