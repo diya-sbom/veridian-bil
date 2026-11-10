@@ -377,3 +377,45 @@ docs/recovery/AUTHORITY_RULES.md
 
 Git history, source code, and test evidence
 remain authoritative.
+
+## Verified Proof Update — 2026-11-09
+
+Branch: post-v1-authority-continuation
+Commit: d57ccee
+Previous checkpoint: 5042098
+
+### Historical V-008 Replay
+Status: REPRODUCED
+
+- Test: test_historical_v008_replay.py
+- Historical verifier commit: 542b6e7
+- Historical evidence: validation/v008_evidence_bundle.json
+- Historical cross-process replay: PASS
+- Original evidence byte comparison: PASS
+- Tampered decision ID rejected: PASS
+- Current production verifier unchanged.
+
+### Composed Authority Denial
+Status: REPRODUCED
+
+- Test: test_replay_composed_authority_not_delegated.py
+- Trusted-key registry supplied to denial replay.
+- Undelegated composed authority rejected.
+- Independently reproduced denial: PASS
+
+### Targeted Security Regression
+Status: PASS
+
+Five scripts completed successfully:
+- Historical V-008 replay
+- Independent human approval
+- Execution-time revocation
+- Approval-to-decision binding
+- Composed-authority denial replay
+
+### Limitations
+- Full repository regression suite not yet confirmed clean.
+- Historical hash integrity is not independent signer authentication.
+- Historical verification must not authorize live execution.
+- Existing planned adversarial scenarios remain planned
+  until their specific proofs are verified.

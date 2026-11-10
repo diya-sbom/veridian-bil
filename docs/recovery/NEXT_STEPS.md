@@ -257,3 +257,47 @@ Approval does not expand authority.
 
 Every consequential action must remain
 within legitimate, current, scoped authority.
+
+## Continuation Plan — 2026-11-09
+
+Branch: post-v1-authority-continuation
+Verified engineering HEAD: d57ccee
+
+### Completed — Do Not Repeat Without Reason
+- Historical V-008 replay reproduced successfully.
+- Historical evidence integrity verified.
+- Tampered historical evidence rejected.
+- Composed-authority denial replay corrected and passed.
+- Five targeted security regression scripts passed.
+- Two regression files committed at d57ccee.
+
+### Immediate Priority
+1. Review the remaining full repository regression failures.
+2. Separate historical evidence compatibility from current
+   authorization requirements.
+3. Preserve mandatory verified_action enforcement.
+4. Never allow legacy replay rules into live execution.
+5. Run affected security regressions after any correction.
+
+### Next Engineering Phase
+- Validate current authority at execution time.
+- Expand adversarial coverage for authority composition.
+- Verify delegation lineage and parent revocation.
+- Prepare reproducible proof for an external operator.
+
+These are continuing objectives, not claims that earlier
+related proofs are incomplete.
+
+### Security Review Discipline
+Before modifying security-sensitive code:
+- Inspect existing authorization safeguards.
+- Inspect trusted provenance and fail-closed paths.
+- Review relevant secure examples and negative tests.
+- Evaluate blast radius before changes.
+- Do not assume an AI coding agent retrieved every safeguard.
+
+### Completion Requirements
+- Record exact test results and limitations.
+- Update Recovery Pack after verified changes.
+- Commit only scoped, reviewed files.
+- Preserve all existing .before_ safety backups.

@@ -87,3 +87,36 @@ Existing .before_ safety backups must remain untouched.
 
 This document is a historical recovery checkpoint.
 Always verify live repository state before relying on it.
+
+## Continuation Checkpoint — 2026-11-09
+
+Branch: post-v1-authority-continuation
+HEAD: d57ccee
+Commit: Preserve historical V-008 replay and trusted authority validation
+Previous checkpoint: 5042098
+
+### Completed
+- Historical V-008 cross-process replay: PASS
+- Original historical evidence preserved: PASS
+- Historical evidence tampering rejected: PASS
+- Composed-authority denial replay: PASS
+- Independent human approval regression: PASS
+- Execution-time revocation regression: PASS
+- Approval-to-decision binding regression: PASS
+- Five targeted security regression scripts: PASS
+
+### Security Boundaries
+- Current production verifier remains unchanged.
+- Current verified_action enforcement remains mandatory.
+- Historical verification is isolated from live authorization.
+- Historical V-008 verifier originates from commit 542b6e7.
+
+### Remaining
+- Full repository regression suite not yet confirmed clean.
+- Resolve legacy cross-process test compatibility without weakening current verification.
+- Update PROOF_INDEX.md and NEXT_STEPS.md.
+- Preserve existing .before_ safety backups.
+
+### Next Engineering Action
+Update Recovery Pack proof index and next steps.
+Then investigate remaining regression compatibility.
