@@ -10,6 +10,7 @@ from test_composed_authority_not_delegated import (
     authority_state_evidence,
     authority_state_boundary_receipt,
     component_receipts,
+    trusted_key_registry,
 )
 
 result = replay_denied_decision(
@@ -25,6 +26,7 @@ result = replay_denied_decision(
     execution_time=None,
     expected_failed_condition="COMPOSED_AUTHORITY_NOT_DELEGATED",
     component_intent_receipts=component_receipts,
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("COMPOSED AUTHORITY DENIAL REPLAY:", result.to_dict())
