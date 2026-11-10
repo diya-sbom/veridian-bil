@@ -22,7 +22,7 @@ bundle = {
     "stored_state": stored_state,
 }
 
-with open("validation/v008_evidence_bundle.json", "w") as f:
+with open("validation/v008_generated_evidence_bundle.json", "w") as f:
     json.dump(bundle, f, sort_keys=True, indent=2)
 
 print("V-008 PRODUCER: EVIDENCE PERSISTED")

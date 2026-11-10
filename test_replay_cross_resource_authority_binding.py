@@ -10,6 +10,7 @@ from test_cross_resource_authority_binding import (
     authority_state_evidence,
     authority_state_boundary_receipt,
     execution_time,
+    trusted_key_registry,
 )
 
 result = replay_denied_decision(
@@ -24,6 +25,7 @@ result = replay_denied_decision(
     authority_state_boundary_receipt=authority_state_boundary_receipt,
     execution_time=execution_time,
     expected_failed_condition="RESOURCE_OUT_OF_SCOPE",
+    trusted_key_registry=trusted_key_registry,
 )
 
 print("CROSS-RESOURCE AUTHORITY DENIAL REPLAY:", result.to_dict())
