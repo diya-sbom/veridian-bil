@@ -19,7 +19,7 @@ def git_blob(path):
 
 def main():
     historical_verifier = git_blob(VERIFIER_PATH)
-    current_test = Path(TEST_PATH).read_text()
+    current_test = git_blob(TEST_PATH).decode("utf-8")
 
     expected_bundle = git_blob(
         "validation/v008_evidence_bundle.json"

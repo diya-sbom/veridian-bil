@@ -47,6 +47,16 @@ print("\nFINAL RESULT")
 print("=" * 40)
 print(result.to_dict())
 
-assert result.passed is True
+assert result.passed is False
+assert result.status == "FAILED_CLOSED"
 
-print("\nV-008 RESULT: PASSED")
+required_failures = (
+    "intent_receipt_signature",
+    "intent_record_hash",
+    "intent_record_signature",
+)
+
+for name in required_failures:
+    assert result.checks.get(name) is False, name
+
+print("\nPASS: CURRENT VERIFIER REJECTED LEGACY V-008 EVIDENCE")
