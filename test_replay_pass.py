@@ -6,6 +6,9 @@ from decisionassure.diya_adapter import verify_intent
 from decisionassure.intent_receipt import create_intent_receipt
 from bil.intent_record import create_intent_record
 from executor.executor import _execute_verified_intent
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from bvp.trust_root import TrustedKeyRegistry
+from executor.execution_evidence import authenticate_execution_result
 from mira.state_receipt import create_state_receipt
 from bil.state_record import create_state_record
 from afs.commit import commit_state
@@ -75,6 +78,19 @@ intent_record = create_intent_record(
 
 execution = _execute_verified_intent(intent_record)
 
+executor_issuer = "VeridianExecutor"
+executor_private_key = Ed25519PrivateKey.generate()
+executor_registry = TrustedKeyRegistry()
+executor_registry.register(
+    executor_issuer,
+    executor_private_key.public_key(),
+)
+execution_evidence = authenticate_execution_result(
+    execution,
+    executor_issuer,
+    executor_private_key,
+)
+
 resulting_state = {
     "status": "ACTIVE",
     "version": "1.0.0",
@@ -84,6 +100,8 @@ resulting_state = {
 state_receipt = create_state_receipt(
     execution,
     resulting_state,
+    execution_evidence,
+    executor_registry,
 )
 
 state_record = create_state_record(
@@ -94,6 +112,8 @@ commit = commit_state(
     state_record,
     state_receipt,
     execution,
+    execution_evidence,
+    executor_registry,
 )
 
 commit_record = create_commit_record(
