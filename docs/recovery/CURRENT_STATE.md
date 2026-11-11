@@ -120,3 +120,33 @@ Previous checkpoint: 5042098
 ### Next Engineering Action
 Update Recovery Pack proof index and next steps.
 Then investigate remaining regression compatibility.
+
+## Verified Continuation Checkpoint - 2026-11-10
+
+Branch: post-v1-authority-continuation
+Engineering HEAD: a75d618
+
+### Completed
+- Generated V-008 evidence isolated from preserved historical evidence: PASS.
+- Cross-resource delegated authority denial replay: PASS.
+- End-to-end fixture now supplies authenticated Ed25519 execution evidence: PASS.
+- State receipt verification: PASS.
+- State record verification: PASS.
+- State commitment and stored-state verification: PASS.
+- Historical V-008 replay and tamper rejection: PASS.
+- Original historical evidence unchanged: PASS.
+- All 73 root-level regression scripts completed successfully.
+- Post-regression tracked working tree verified clean.
+
+### Security Boundaries
+- Production authorization and replay verification controls unchanged.
+- Execution success alone does not establish authenticated execution.
+- Invalid or missing authenticated evidence must fail closed.
+- Historical V-008 evidence must not be regenerated in place.
+- Existing .before_ safety backups must remain untouched.
+
+### Remaining
+- Nested and external integration verification remains separate.
+- Prepare reproducible independent operator validation.
+- Update PROOF_INDEX.md and NEXT_STEPS.md.
+- Preserve this engineering checkpoint before further changes.

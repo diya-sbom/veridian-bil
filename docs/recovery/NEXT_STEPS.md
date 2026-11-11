@@ -301,3 +301,51 @@ Before modifying security-sensitive code:
 - Update Recovery Pack after verified changes.
 - Commit only scoped, reviewed files.
 - Preserve all existing .before_ safety backups.
+
+## Continuation Plan - 2026-11-10
+
+Branch: post-v1-authority-continuation
+Verified engineering HEAD: a75d618
+
+### Completed
+- Historical V-008 replay and tamper rejection verified.
+- Generated evidence isolated from historical proof.
+- Cross-resource delegated authority denial replay verified.
+- Authenticated execution evidence added to end-to-end fixture.
+- State receipt, state record, commitment, and storage verified.
+- All 73 root-level regression scripts passed.
+- Post-regression tracked repository integrity verified.
+
+### Immediate Priorities
+1. Preserve the verified engineering checkpoint in the Recovery Pack.
+2. Design an independent external-operator validation procedure.
+3. Identify an external adopter that must use Veridian's authority gate.
+4. Verify current authority at consequential execution time.
+5. Expand adversarial scenarios for multi-agent delegation and authority composition.
+6. Verify parent revocation, authority contraction, and supersession.
+7. Preserve fail-closed behavior throughout execution and commitment.
+
+### External Validation Requirements
+- Reproduce authorized execution and unauthorized denial.
+- Verify delegated authority lineage and resource binding.
+- Demonstrate revocation prevents later execution.
+- Confirm denied execution produces no unauthorized state commitment.
+- Preserve independently verifiable evidence and replay artifacts.
+- Record exact commands, Git hashes, and observed results.
+
+### Security Rules
+- Do not weaken current verified_action enforcement.
+- Do not treat human approval as authority expansion.
+- Do not allow historical replay rules into live authorization.
+- Preserve historical V-008 evidence and existing .before_ backups.
+- Review changes according to authority impact and blast radius.
+
+### Remaining Verification
+- Nested and external integration tests remain separately unverified.
+- Independent external-operator reproduction remains pending.
+- Acquisition readiness and production deployment are not established.
+
+### Next Session
+Start by verifying the current branch, HEAD, and working-tree status.
+Read CURRENT_STATE.md, PROOF_INDEX.md, and this continuation plan.
+Select one scoped external-validation objective before changing code.

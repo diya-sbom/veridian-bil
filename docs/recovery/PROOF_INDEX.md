@@ -419,3 +419,35 @@ Five scripts completed successfully:
 - Historical verification must not authorize live execution.
 - Existing planned adversarial scenarios remain planned
   until their specific proofs are verified.
+
+## Verified Regression Evidence - 2026-11-10
+
+Branch: post-v1-authority-continuation
+Engineering HEAD: a75d618
+
+### Git Evidence
+- 571a8fa: Isolate generated V-008 evidence and repair cross-resource replay.
+- a75d618: Authenticate execution evidence in end-to-end replay fixture.
+
+### Verified Proofs
+- Historical V-008 replay: PASS.
+- Historical evidence tampering rejected: PASS.
+- Original V-008 evidence preserved: PASS.
+- Cross-resource authority denial replay: PASS.
+- Authenticated execution and state commitment: PASS.
+- State receipt and state record verification: PASS.
+- Stored-state verification: PASS.
+- All 73 root-level regression scripts: PASS.
+- Post-regression repository integrity: PASS.
+
+### Evidence Preservation
+- Historical fixture: validation/v008_evidence_bundle.json
+- Generated fixture: validation/v008_generated_evidence_bundle.json
+- Generated evidence must not overwrite historical proof.
+- Production verifier remains unchanged.
+- Existing .before_ safety backups remain untouched.
+
+### Verification Scope
+- Root-level test_*.py scripts completed successfully.
+- Nested and external integration verification not yet established.
+- Independent external operator reproduction remains pending.
