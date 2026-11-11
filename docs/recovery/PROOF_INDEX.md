@@ -451,3 +451,39 @@ Engineering HEAD: a75d618
 - Root-level test_*.py scripts completed successfully.
 - Nested and external integration verification not yet established.
 - Independent external operator reproduction remains pending.
+
+## Standalone External Verifier Proof - 2026-11-10
+
+Baseline Git HEAD: 3f312c0
+
+### Positive Verification
+Command:
+python3 external_replay_verifier.py validation/v008_generated_evidence_bundle.json
+
+Observed:
+- passed: True
+- status: VERIFIED
+- failed_checks: []
+
+### Negative Verification
+- Created a temporary copy of the generated evidence.
+- Replaced intent_receipt.decision_id with TAMPERED-DECISION.
+- Executed the standalone verifier against the modified copy.
+
+Observed:
+- passed: False
+- status: FAILED_CLOSED
+- Nonzero process exit status.
+- intent_receipt_signature: FAIL
+- intent_linkage: FAIL
+
+### Integrity
+- Original historical V-008 evidence unchanged.
+- Tracked working tree remained clean after verification.
+- No production verification code modified.
+
+### Scope and Limitations
+- Standalone evidence-chain validation demonstrated locally.
+- Independent Ed25519 trust-root verification not established by this proof.
+- Execution-time authority enforcement not independently reproduced.
+- External third-party operator reproduction remains pending.
