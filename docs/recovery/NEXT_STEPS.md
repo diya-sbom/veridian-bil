@@ -349,3 +349,22 @@ Verified engineering HEAD: a75d618
 Start by verifying the current branch, HEAD, and working-tree status.
 Read CURRENT_STATE.md, PROOF_INDEX.md, and this continuation plan.
 Select one scoped external-validation objective before changing code.
+
+## Continuation Checkpoint - 2026-11-11
+
+Verified engineering HEAD: 0014d09
+Regression baseline: 74/74 PASS
+
+Next priorities:
+1. Preserve the verified 74-script regression checkpoint.
+2. Design independently provisioned trust-anchor validation.
+3. Reproduce authorized execution and denied execution externally.
+4. Verify execution-time authority and prevention of unauthorized commits.
+5. Specify robotic dispatch authority adversarial scenarios:
+   credentials alone are insufficient; bind cargo, destination,
+   recipient, and cost; enforce cumulative limits and revocation;
+   distinguish dispatch acceptance, physical execution, and delivery.
+6. Preserve historical V-008 evidence and all safety backups.
+
+Independent external operator reproduction remains pending.
+Production deployment and acquisition readiness are not established.

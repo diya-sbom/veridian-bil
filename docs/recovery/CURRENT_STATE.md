@@ -150,3 +150,15 @@ Engineering HEAD: a75d618
 - Prepare reproducible independent operator validation.
 - Update PROOF_INDEX.md and NEXT_STEPS.md.
 - Preserve this engineering checkpoint before further changes.
+
+## Verified Engineering Checkpoint - 2026-11-11
+
+Branch: post-v1-authority-continuation
+Engineering HEAD: 0014d09
+
+- Isolated two-process cryptographic trust regression committed.
+- All 74 root-level regression scripts passed.
+- Post-regression tracked repository integrity verified.
+- Historical V-008 evidence remained unchanged.
+- Independent third-party trust approval and execution-time
+  authority reproduction remain pending.

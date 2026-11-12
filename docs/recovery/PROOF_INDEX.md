@@ -487,3 +487,21 @@ Observed:
 - Independent Ed25519 trust-root verification not established by this proof.
 - Execution-time authority enforcement not independently reproduced.
 - External third-party operator reproduction remains pending.
+
+## Two-Process Cryptographic Trust Regression - 2026-11-11
+
+Engineering commit: 0014d09
+Test: test_external_trust_two_process.py
+
+Verified:
+- Separately provisioned trusted public key accepted.
+- Tampered signed evidence rejected.
+- Unknown issuer rejected.
+- Revoked key rejected.
+- Full 74-script root-level regression suite passed.
+- Post-regression repository integrity passed.
+
+Limitations:
+- The local harness provisions the trust configuration.
+- Independent third-party trust approval remains unproven.
+- Physical-world execution authorization is not demonstrated.
