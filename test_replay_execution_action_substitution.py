@@ -1,0 +1,181 @@
+from decisionassure.decision_object import create_decision_object
+from decisionassure.governance_receipt import create_governance_receipt
+from decisionassure.responsibility_chain import create_responsibility_chain
+from bvp.boundary_receipt import create_boundary_receipt
+from decisionassure.diya_adapter import verify_intent
+from decisionassure.intent_receipt import create_intent_receipt
+from bil.intent_record import create_intent_record
+from executor.executor import _execute_verified_intent
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from bvp.trust_root import TrustedKeyRegistry
+from executor.execution_evidence import authenticate_execution_result
+from mira.state_receipt import create_state_receipt
+from bil.state_record import create_state_record
+from afs.commit import commit_state
+from bil.commit_record import create_commit_record
+from state_store import save_state, load_state
+from replay_verifier import verify_chain
+from authority_fixture import create_trusted_authority_fixture
+from authority_state_fixture import create_authority_state_fixture
+
+
+decision = create_decision_object(
+    requestor="human-001",
+    authority="Risk Committee",
+    responsible_party="Alice",
+    policy_version="policy-v1",
+    intent="Approve controlled deployment",
+    evidence_references=["evidence-001"],
+    decision="APPROVED",
+    intended_action="DEPLOY",
+    intended_state={"status": "ACTIVE"},
+)
+
+governance_receipt = create_governance_receipt(decision)
+
+(
+    responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+    trusted_key_registry,
+) = create_trusted_authority_fixture()
+
+authority_state_evidence, authority_state_boundary_receipt = create_authority_state_fixture(
+    responsibility_chain,
+    authority_evidence,
+    state="ACTIVE",
+)
+
+boundary_receipt = create_boundary_receipt(
+    sender="DecisionAssure",
+    receiver="Diya",
+    artifact_type="GOVERNANCE_DECISION",
+    artifact=decision.to_dict(),
+    policy_version="policy-v1",
+)
+
+verification = verify_intent(
+    decision,
+    governance_receipt,
+    boundary_receipt,
+    responsibility_chain,
+    authority_evidence,
+    authority_boundary_receipt,
+    authority_state_evidence,
+    authority_state_boundary_receipt,
+    trusted_key_registry=trusted_key_registry)
+
+intent_receipt = create_intent_receipt(
+    boundary_receipt,
+    verification,
+)
+
+intent_record = create_intent_record(
+    governance_receipt,
+    boundary_receipt,
+    intent_receipt,
+)
+
+execution = _execute_verified_intent(intent_record)
+
+executor_issuer = "VeridianExecutor"
+executor_private_key = Ed25519PrivateKey.generate()
+executor_registry = TrustedKeyRegistry()
+executor_registry.register(
+    executor_issuer,
+    executor_private_key.public_key(),
+)
+execution_evidence = authenticate_execution_result(
+    execution,
+    executor_issuer,
+    executor_private_key,
+)
+
+resulting_state = {
+    "status": "ACTIVE",
+    "version": "1.0.0",
+    "deployment": "SUCCESS",
+}
+
+state_receipt = create_state_receipt(
+    execution,
+    resulting_state,
+    execution_evidence,
+    executor_registry,
+)
+
+state_record = create_state_record(
+    state_receipt,
+)
+
+commit = commit_state(
+    state_record,
+    state_receipt,
+    execution,
+    execution_evidence,
+    executor_registry,
+)
+
+commit_record = create_commit_record(
+    commit,
+)
+
+save_state(
+    commit,
+    state_record,
+)
+
+stored_state = load_state()
+
+replay_result = verify_chain(
+    intent_receipt=intent_receipt,
+    intent_record=intent_record,
+    execution=execution,
+    state_receipt=state_receipt,
+    state_record=state_record,
+    commit=commit,
+    commit_record=commit_record,
+    stored_state=stored_state,
+)
+
+print("\nVERIDIAN END-TO-END REPLAY")
+print("=" * 40)
+
+for check_name, passed in replay_result.checks.items():
+    symbol = "PASS" if passed else "FAIL"
+    print(f"{check_name}: {symbol}")
+
+print("\nFINAL RESULT")
+print("=" * 40)
+print(replay_result.to_dict())
+
+
+from dataclasses import replace
+
+assert replay_result.passed, "STOP: Original replay failed"
+
+forged_execution = replace(
+    execution,
+    action="MODIFY_EXECUTION_INFRASTRUCTURE",
+)
+
+assert forged_execution.action != execution.action
+
+attack_result = verify_chain(
+    intent_receipt=intent_receipt,
+    intent_record=intent_record,
+    execution=forged_execution,
+    state_receipt=state_receipt,
+    state_record=state_record,
+    commit=commit,
+    commit_record=commit_record,
+    stored_state=stored_state,
+)
+
+assert attack_result.passed is False
+assert attack_result.status == "FAILED_CLOSED"
+assert "execution_action_linkage" in attack_result.failed_checks
+
+print("PASS: VALID HISTORICAL REPLAY PRESERVED")
+print("PASS: SUBSTITUTED EXECUTION ACTION REJECTED")
+print("PASS: EXECUTION ACTION LINKAGE VERIFIED")

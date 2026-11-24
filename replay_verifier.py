@@ -133,6 +133,14 @@ def verify_chain(
         == intent_record.decision_id
     )
 
+    # Execution must match the independently verified intent.
+    checks["execution_action_linkage"] = (
+        isinstance(execution.action, str)
+        and bool(execution.action)
+        and execution.action == intent_record.verified_action
+        and execution.action == intent_receipt.verified_action
+    )
+
     checks["execution_status"] = (
         execution.status == "EXECUTED"
     )
