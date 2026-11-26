@@ -15,7 +15,7 @@ permissions:
 jobs:
   veridian-security-gate:
     name: veridian-security-gate
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:
