@@ -1364,7 +1364,7 @@ with tempfile.TemporaryDirectory() as folder:
     ):
         result = subprocess.run(
             [
-                sys.executable, "-c", verifier_code,
+                sys.executable, "-c", __import__("textwrap").dedent(verifier_code),
                 str(database), public_key, mode
             ],
             env=verifier_env,
