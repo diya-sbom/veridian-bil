@@ -1,0 +1,39 @@
+name: Veridian Security
+
+on:
+  push:
+    branches:
+      - post-v1-authority-continuation
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  veridian-security-gate:
+    name: veridian-security-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Verify signed authority application
+        run: python -u test_signed_authority_application_receipt.py
+
+      - name: Verify signed payment completion
+        run: python -u test_signed_payment_completion_receipt.py
