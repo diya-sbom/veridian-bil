@@ -1,0 +1,1406 @@
+independent_verifier_code = '\nimport sys\nimport json\nimport base64\nimport sqlite3\nfrom pathlib import Path\nfrom datetime import datetime\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey\nfrom bvp.trust_root import verify_payload_signature, public_key_id\n\ndef require(condition):\n    if not condition:\n        raise ValueError("Verification failed")\n\ntry:\n    config = json.loads(sys.stdin.read())\n\n    def trusted_key(name):\n        return Ed25519PublicKey.from_public_bytes(\n            base64.b64decode(config[name], validate=True)\n        )\n\n    payment_key = trusted_key("payment_key")\n    operator_key = trusted_key("operator_key")\n    evidence_key = trusted_key("evidence_key")\n\n    uri = Path(config["database"]).resolve().as_uri()\n    with sqlite3.connect(uri + "?mode=ro", uri=True) as db:\n        db.execute("BEGIN")\n\n        rows = db.execute(\n            "SELECT authorization_id, signed_evidence, "\n            "key_id, signature FROM denial_evidence "\n            "WHERE evidence_id=?",\n            (config["evidence_id"],)\n        ).fetchall()\n\n        require(len(rows) == 1)\n\n        authorization_id, raw, key_id, signature = rows[0]\n        evidence = json.loads(raw)\n\n        require(key_id == public_key_id(evidence_key))\n        require(verify_payload_signature(\n            evidence_key, evidence, signature\n        ))\n\n        require(evidence["evidence_id"] == config["evidence_id"])\n        require(evidence["schema"] == "veridian.payment-denial.v1")\n        require(evidence["authorization_id"] == authorization_id)\n\n        authorization = evidence["authorization"]\n        payment = authorization["payload"]\n\n        require(verify_payload_signature(\n            payment_key, payment, authorization["signature"]\n        ))\n\n        for field in (\n            "authorization_id", "decision_id", "payee", "amount"\n        ):\n            require(payment[field] == evidence[field])\n\n        require(payment["action"] == "EXECUTE_PAYMENT")\n        require(payment["delegation_id"] == evidence["delegation_id"])\n        require(payment["audience"] == "MOCK-PAYMENT-SERVICE")\n\n        observed = datetime.fromisoformat(evidence["observed_at"])\n        application = evidence["application_event"]\n\n        require(application["command_id"] ==\n                evidence["revocation_command_id"])\n\n        require(application["delegation_id"] ==\n                evidence["delegation_id"])\n\n        require(application["authority_version"] ==\n                evidence["authority_version"])\n\n        require(application["authority_state"] == "REVOKED")\n\n        issued = datetime.fromisoformat(payment["issued_at"])\n\n        command_issued = datetime.fromisoformat(\n            evidence["signed_revocation"]["payload"]["command_issued_at"]\n        )\n\n        applied = datetime.fromisoformat(\n            application["applied_at"]\n        )\n\n        require(all(\n            t.utcoffset() is not None\n            for t in (issued, command_issued, applied, observed)\n        ))\n\n        require(issued <= command_issued <= applied <= observed)\n        expires = datetime.fromisoformat(payment["expires_at"])\n\n        require(observed < expires)\n\n        revocation = evidence["signed_revocation"]\n        command = revocation["payload"]\n\n        require(revocation["issuer"] == "TEST-OPERATOR")\n        require(verify_payload_signature(\n            operator_key, command, revocation["signature"]\n        ))\n\n        require(command["operation"] == "SET_AUTHORITY")\n        require(command["state"] == "REVOKED")\n        require(command["delegation_id"] == evidence["delegation_id"])\n        require(command["command_id"] == evidence["revocation_command_id"])\n        require(type(command["expected_version"]) is int)\n        require(command["expected_version"] + 1 ==\n                evidence["authority_version"])\n\n        require(evidence["authority_state"] == "REVOKED")\n        require(evidence["status"] == "FAILED_CLOSED")\n        require(evidence["reason"] == "CURRENT_AUTHORITY_REVOKED")\n\n        stored = db.execute(\n            "SELECT signed_command FROM commands "\n            "WHERE command_id=? AND delegation_id=? "\n            "AND resulting_version=?",\n            (\n                command["command_id"],\n                command["delegation_id"],\n                evidence["authority_version"]\n            )\n        ).fetchone()\n\n        require(stored is not None)\n        require(json.loads(stored[0]) == revocation)\n\n        count = db.execute(\n            "SELECT COUNT(*) FROM payments "\n            "WHERE authorization_id=?",\n            (authorization_id,)\n        ).fetchone()[0]\n\n        require(count == 0)\n\n    print("VERIFIED_DENIAL")\n\nexcept Exception:\n    print("REPLAY_REJECTED")\n    sys.exit(1)\n'
+
+admin_worker_code = 'import os\nimport base64\nfrom cryptography.hazmat.primitives import serialization\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey\nfrom bvp.trust_root import sign_payload, public_key_id\n_authority_signing_key = Ed25519PrivateKey.from_private_bytes(base64.b64decode(os.environ[\'VERIDIAN_TEST_AUTHORITY_SERVICE_PRIVATE_KEY\'], validate=True))\nfrom datetime import datetime, timezone\n\nimport base64\nimport json\nimport os\nimport sqlite3\nimport sys\n\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey\nfrom bvp.trust_root import verify_payload_signature\n\nkey = Ed25519PublicKey.from_public_bytes(\n    base64.b64decode(os.environ["VERIDIAN_TEST_OPERATOR_PUBLIC_KEY"])\n)\n\ndb = sqlite3.connect(os.environ["VERIDIAN_TEST_AUTHORITY_DB"], isolation_level=None)\ndb.execute("CREATE TABLE IF NOT EXISTS commands (command_id TEXT PRIMARY KEY, delegation_id TEXT NOT NULL, resulting_version INTEGER NOT NULL, signed_command TEXT NOT NULL, UNIQUE(delegation_id, resulting_version))")\n\ndef current():\n    return db.execute(\n        "SELECT state, version FROM authority WHERE delegation_id=\'payment-delegation-001\'"\n    ).fetchone()\n\ndef apply(request):\n    denied = {"status": "FAILED_CLOSED"}\n    try:\n        auth = request["authorization"]\n        payload = auth["payload"]\n\n        if not isinstance(payload, dict):\n            return denied\n\n        if (\n            auth["issuer"] != "TEST-OPERATOR"\n            or not verify_payload_signature(key, payload, auth["signature"])\n            or payload["operation"] != "SET_AUTHORITY"\n            or payload["delegation_id"] != "payment-delegation-001"\n            or payload["state"] not in ("ACTIVE", "REVOKED")\n            or type(payload["expected_version"]) is not int\n            or not isinstance(payload["command_id"], str)\n            or not payload["command_id"]\n        ):\n            return denied\n\n        db.execute("BEGIN IMMEDIATE")\n        try:\n            if db.execute(\n                "SELECT 1 FROM commands WHERE command_id=?",\n                (payload["command_id"],)\n            ).fetchone():\n                db.rollback()\n                return denied\n\n            changed = db.execute(\n                "UPDATE authority SET state=?, version=version+1 "\n                "WHERE delegation_id=? AND version=?",\n                (\n                    payload["state"],\n                    "payment-delegation-001",\n                    payload["expected_version"],\n                )\n            )\n            if changed.rowcount != 1:\n                db.rollback()\n                return denied\n\n            db.execute("INSERT INTO commands VALUES (?, ?, ?, ?)", (payload["command_id"], payload["delegation_id"], payload["expected_version"] + 1, json.dumps(auth, sort_keys=True)))\n            db.execute(\n                "CREATE TABLE IF NOT EXISTS authority_application_events ("\n                "event_id INTEGER PRIMARY KEY AUTOINCREMENT, "\n                "command_id TEXT NOT NULL UNIQUE, "\n                "delegation_id TEXT NOT NULL, "\n                "authority_version INTEGER NOT NULL, "\n                "authority_state TEXT NOT NULL, "\n                "applied_at TEXT NOT NULL)"\n            )\n\n            db.execute(\n                "INSERT INTO authority_application_events "\n                "(command_id, delegation_id, authority_version, "\n                "authority_state, applied_at) VALUES (?, ?, ?, ?, ?)",\n                (\n                    payload["command_id"],\n                    payload["delegation_id"],\n                    payload["expected_version"] + 1,\n                    payload["state"],\n                    datetime.now(timezone.utc).isoformat()\n                )\n            )\n            db.execute(\n                "CREATE TABLE IF NOT EXISTS authority_service_receipts ("\n                "command_id TEXT PRIMARY KEY, "\n                "receipt_json TEXT NOT NULL, "\n                "signature TEXT NOT NULL, "\n                "signer_key_id TEXT NOT NULL)"\n            )\n\n            event = db.execute(\n                "SELECT event_id, command_id, delegation_id, "\n                "authority_version, authority_state, applied_at "\n                "FROM authority_application_events "\n                "WHERE command_id=?",\n                (payload["command_id"],)\n            ).fetchone()\n\n            assert event is not None\n\n            receipt = {\n                "schema": "veridian.authority-application.v1",\n                "event_id": event[0],\n                "command_id": event[1],\n                "delegation_id": event[2],\n                "authority_version": event[3],\n                "authority_state": event[4],\n                "applied_at": event[5]\n            }\n\n            receipt_signature = sign_payload(\n                _authority_signing_key, receipt\n            )\n\n            db.execute(\n                "INSERT INTO authority_service_receipts "\n                "(command_id, receipt_json, signature, signer_key_id) "\n                "VALUES (?, ?, ?, ?)",\n                (\n                    payload["command_id"],\n                    json.dumps(receipt, sort_keys=True),\n                    receipt_signature,\n                    public_key_id(_authority_signing_key.public_key())\n                )\n            )\n            db.commit()\n            return {"status": "APPLIED"}\n        except Exception:\n            db.rollback()\n            return denied\n    except Exception:\n        return denied\n\nprint(json.dumps({**{"ready": True, "pid": os.getpid()}, \'authority_service_public_key\': base64.b64encode(_authority_signing_key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw)).decode(\'ascii\')}), flush=True)\n\nfor line in sys.stdin:\n    try:\n        request = json.loads(line)\n        if not isinstance(request, dict):\n            result = {"status": "FAILED_CLOSED"}\n        elif request.get("action") == "READ_AUTHORITY":\n            state, version = current()\n            result = {"state": state, "version": version}\n        elif request.get("action") == "ADMINISTER_AUTHORITY":\n            result = apply(request)\n        else:\n            result = {"status": "FAILED_CLOSED"}\n    except Exception:\n        result = {"status": "FAILED_CLOSED"}\n    print(json.dumps(result), flush=True)\n'
+
+"""Test-only independent payment enforcement. No real payments."""
+import base64
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from bvp.trust_root import sign_payload
+
+worker_code = 'import base64\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey\nfrom bvp.trust_root import public_key_id\n\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey\nfrom cryptography.hazmat.primitives import serialization\nfrom bvp.trust_root import sign_payload, public_key_id\n\nimport os\nimport base64\n\nevidence_private_key = Ed25519PrivateKey.from_private_bytes(\n    base64.b64decode(\n        os.environ.pop("VERIDIAN_TEST_EVIDENCE_KEY")\n    )\n)\nevidence_public_key = evidence_private_key.public_key()\nevidence_key_id = public_key_id(evidence_public_key)\n\n\nimport base64\nimport contextlib\nimport io\nimport json\nimport os\nimport runpy\nimport sqlite3\nimport sys\nfrom datetime import datetime, timezone\n\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey\nfrom bvp.trust_root import verify_payload_signature\nfrom executor.guarded_execution import execute_with_current_authority\n\nwith contextlib.redirect_stdout(io.StringIO()):\n    f = runpy.run_path("test_guarded_execution_revocation.py")\n\ndecision = f["payment"]\n# Authority is read from the service database at redemption.\n\nstates = {\n    "ACTIVE": ("active_state", "active_state_boundary"),\n    "REVOKED": ("revoked_state", "revoked_state_boundary"),\n}\n\ntry:\n    trusted = Ed25519PublicKey.from_public_bytes(\n        base64.b64decode(\n            os.environ["VERIDIAN_TEST_TRUSTED_PUBLIC_KEY"],\n            validate=True,\n        )\n    )\nexcept Exception:\n    trusted = None\n\ndatabase = os.environ["VERIDIAN_TEST_PAYMENT_DB"]\n\n\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey\nfrom bvp.trust_root import sign_payload, public_key_id\n\nexecutor_private = Ed25519PrivateKey.from_private_bytes(\n    base64.b64decode(\n        os.environ.pop("VERIDIAN_TEST_EXECUTOR_PRIVATE_KEY"),\n        validate=True,\n    )\n)\nexecutor_key_id = public_key_id(executor_private.public_key())\n\nwith sqlite3.connect(database) as receipt_db:\n    receipt_db.execute("""\n        CREATE TABLE IF NOT EXISTS payment_completion_receipts (\n            authorization_id TEXT PRIMARY KEY,\n            receipt_json TEXT NOT NULL,\n            signature TEXT NOT NULL,\n            signer_key_id TEXT NOT NULL\n        )\n    """)\n\nwith sqlite3.connect(database) as db:\n    db.execute("""\n        CREATE TABLE IF NOT EXISTS payments (\n            authorization_id TEXT PRIMARY KEY,\n            decision_id TEXT NOT NULL,\n            payee TEXT NOT NULL,\n            amount INTEGER NOT NULL\n        )\n    """)\n\n\nwith sqlite3.connect(database) as db:\n    db.execute("""\n        CREATE TABLE IF NOT EXISTS denial_evidence (\n            evidence_id TEXT PRIMARY KEY,\n            authorization_id TEXT NOT NULL,\n            signed_evidence TEXT NOT NULL,\n            key_id TEXT NOT NULL,\n            signature TEXT NOT NULL\n        )\n    """)\n\ndef redeem(request):\n    denied = {"status": "FAILED_CLOSED"}\n\n    if not isinstance(request, dict):\n        return denied\n\n    if trusted is None:\n        return denied\n\n    try:\n        authorization = request["authorization"]\n        payload = authorization["payload"]\n        signature = authorization["signature"]\n\n        if not isinstance(payload, dict):\n            return denied\n\n        if not verify_payload_signature(trusted, payload, signature):\n            return denied\n\n        expires = datetime.fromisoformat(payload["expires_at"])\n\n        if expires.tzinfo is None:\n            return denied\n\n        if datetime.now(timezone.utc) >= expires:\n            return denied\n\n        if not (\n            request.get("action") == "EXECUTE_PAYMENT"\n            and payload.get("action") == "EXECUTE_PAYMENT"\n            and payload.get("audience") == "MOCK-PAYMENT-SERVICE"\n            and payload.get("decision_id") == decision.decision_id\n            and payload.get("delegation_id") == "payment-delegation-001"\n            and request.get("payee") == payload.get("payee")\n            and payload.get("payee") == decision.governed_resource\n            and type(request.get("amount")) is int\n            and type(payload.get("amount")) is int\n            and request["amount"] == payload["amount"]\n            and payload["amount"] == decision.requested_authority_units\n            and isinstance(payload.get("authorization_id"), str)\n            and bool(payload["authorization_id"])\n        ):\n            return denied\n\n\n        with sqlite3.connect(database, timeout=10) as db:\n            db.execute("BEGIN IMMEDIATE")\n\n            # Read operator-owned authority under the payment lock.\n            current = db.execute(\n                "SELECT state, version FROM authority WHERE delegation_id=?",\n                ("payment-delegation-001",),\n            ).fetchone()\n\n            if current is None or current[0] not in states:\n                db.rollback()\n                return denied\n\n            state_key, boundary_key = states[current[0]]\n\n            existing = db.execute(\n                "SELECT 1 FROM payments WHERE authorization_id=?",\n                (payload["authorization_id"],)\n            ).fetchone()\n\n            if existing:\n                db.rollback()\n                return denied\n\n            with contextlib.redirect_stdout(io.StringIO()):\n                verification, _, record, execution = (\n                    execute_with_current_authority(\n                        decision,\n                        f["gov"],\n                        f["boundary"],\n                        f["responsibility_chain"],\n                        f["authority_evidence"],\n                        f["authority_boundary_receipt"],\n                        f[state_key],\n                        f[boundary_key],\n                        f["authorization_time"],\n                        f["trusted_key_registry"],\n                    )\n                )\n\n            if not (\n                verification.status == "VERIFIED"\n                and verification.verified_action == "EXECUTE_PAYMENT"\n                and record.status == "VERIFIED"\n                and record.verified_action == "EXECUTE_PAYMENT"\n                and execution.status == "EXECUTED"\n                and execution.action == "EXECUTE_PAYMENT"\n            ):\n                if current[0] == "REVOKED":\n                    revocation = db.execute(\n                        "SELECT command_id, signed_command "\n                        "FROM commands WHERE delegation_id=? "\n                        "AND resulting_version=?",\n                        ("payment-delegation-001", current[1])\n                    ).fetchone()\n\n                    if revocation is None:\n                        db.rollback()\n                        return denied\n\n                    signed_revocation = json.loads(revocation[1])\n                    application = db.execute(\n                        "SELECT event_id, command_id, delegation_id, "\n                        "authority_version, authority_state, applied_at "\n                        "FROM authority_application_events "\n                        "WHERE command_id=? AND delegation_id=? "\n                        "AND authority_version=? AND authority_state=?",\n                        (\n                            revocation[0],\n                            "payment-delegation-001",\n                            current[1],\n                            "REVOKED"\n                        )\n                    ).fetchone()\n\n                    if application is None:\n                        db.rollback()\n                        return denied\n\n                    application_event = dict(zip(\n                        (\n                            "event_id",\n                            "command_id",\n                            "delegation_id",\n                            "authority_version",\n                            "authority_state",\n                            "applied_at"\n                        ),\n                        application\n                    ))\n\n                    try:\n                        receipt_row = db.execute(\n                            "SELECT receipt_json, signature, signer_key_id "\n                            "FROM authority_service_receipts WHERE command_id=?",\n                            (revocation[0],)\n                        ).fetchone()\n\n                        if receipt_row is None:\n                            raise ValueError("Missing authority-service receipt")\n\n                        service_receipt = json.loads(receipt_row[0])\n\n                        service_public = Ed25519PublicKey.from_public_bytes(\n                            base64.b64decode(\n                                os.environ["VERIDIAN_TEST_AUTHORITY_SERVICE_PUBLIC_KEY"],\n                                validate=True\n                            )\n                        )\n\n                        if public_key_id(service_public) != receipt_row[2]:\n                            raise ValueError("Wrong authority-service key")\n\n                        if not verify_payload_signature(\n                            service_public, service_receipt, receipt_row[1]\n                        ):\n                            raise ValueError("Invalid authority-service signature")\n\n                        if service_receipt != {"schema": "veridian.authority-application.v1", **application_event}:\n                            raise ValueError("Authority application mismatch")\n\n                    except Exception:\n                        db.rollback()\n                        return denied\n\n                    denial_evidence = {\n                        "schema": "veridian.payment-denial.v1",\n                        "evidence_id": __import__("uuid").uuid4().hex,\n                        "authorization": request["authorization"],\n                        "authorization_id": payload["authorization_id"],\n                        "decision_id": decision.decision_id,\n                        "delegation_id": "payment-delegation-001",\n                        "payee": payload["payee"],\n                        "amount": payload["amount"],\n                        "authority_state": current[0],\n                        "authority_version": current[1],\n                        "revocation_command_id": revocation[0],\n                        "signed_revocation": signed_revocation,\n                        "application_event": application_event,\n                        "status": "FAILED_CLOSED",\n                        "reason": "CURRENT_AUTHORITY_REVOKED",\n                        "verification_status": verification.status,\n                        "execution_status": execution.status,\n                        "observed_at": datetime.now(timezone.utc).isoformat()\n                    }\n\n                    signature = sign_payload(\n                        evidence_private_key, denial_evidence\n                    )\n\n                    db.execute(\n                        "INSERT INTO denial_evidence "\n                        "VALUES (?, ?, ?, ?, ?)",\n                        (\n                            denial_evidence["evidence_id"],\n                            payload["authorization_id"],\n                            json.dumps(denial_evidence, sort_keys=True),\n                            evidence_key_id,\n                            signature\n                        )\n                    )\n\n                    db.commit()\n\n                    return {\n                        "status": "FAILED_CLOSED",\n                        "evidence": denial_evidence,\n                        "evidence_key_id": evidence_key_id,\n                        "evidence_signature": signature\n                    }\n\n                db.rollback()\n                return denied\n\n            db.execute(\n                """INSERT INTO payments\n                   (authorization_id, decision_id, payee, amount)\n                   VALUES (?, ?, ?, ?)""",\n                (\n                    payload["authorization_id"],\n                    decision.decision_id,\n                    payload["payee"],\n                    payload["amount"],\n                ),\n            )\n            receipt = {\n                "schema": "veridian.payment-completion.v1",\n                "status": "COMPLETED",\n                "authorization_id": payload["authorization_id"],\n                "decision_id": decision.decision_id,\n                "payee": payload["payee"],\n                "amount": payload["amount"],\n            }\n            receipt_signature = sign_payload(executor_private, receipt)\n\n            db.execute(\n                "INSERT INTO payment_completion_receipts "\n                "(authorization_id, receipt_json, signature, signer_key_id) "\n                "VALUES (?, ?, ?, ?)",\n                (\n                    receipt["authorization_id"],\n                    json.dumps(receipt, sort_keys=True),\n                    receipt_signature,\n                    executor_key_id,\n                ),\n            )\n            db.commit()\n            return {"status": "COMPLETED"}\n\n    except Exception:\n        db.rollback()\n        return denied\n\n# The service announces its own decision identity.\nprint(json.dumps({\n    "decision_id": decision.decision_id,\n    "payee": decision.governed_resource,\n    "amount": decision.requested_authority_units,\n}), flush=True)\n\nfor line in sys.stdin:\n    try:\n        response = redeem(json.loads(line))\n    except Exception:\n        response = {"status": "FAILED_CLOSED"}\n    print(json.dumps(response), flush=True)\n'
+
+private_key = Ed25519PrivateKey.generate()
+public_bytes = private_key.public_key().public_bytes(
+    encoding=serialization.Encoding.Raw,
+    format=serialization.PublicFormat.Raw,
+)
+
+with tempfile.TemporaryDirectory() as folder:
+    database = str(Path(folder) / "payments.sqlite")
+
+    with sqlite3.connect(database) as db:
+        db.execute("""
+            CREATE TABLE authority (
+                delegation_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL
+                    CHECK (state IN ('ACTIVE', 'REVOKED')),
+                version INTEGER NOT NULL
+            )
+        """)
+        db.execute(
+            "INSERT INTO authority VALUES (?, ?, ?)",
+            ("payment-delegation-001", "ACTIVE", 1),
+        )
+
+    def signed_revoke():
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+
+        operator = Ed25519PrivateKey.generate()
+        attacker = Ed25519PrivateKey.generate()
+
+        public = operator.public_key().public_bytes(
+            serialization.Encoding.Raw,
+            serialization.PublicFormat.Raw
+        )
+
+        admin_env = os.environ.copy()
+        admin_env["VERIDIAN_TEST_AUTHORITY_SERVICE_PRIVATE_KEY"] = globals()["_veridian_service_private"]
+        admin_env["VERIDIAN_TEST_AUTHORITY_DB"] = database
+        admin_env["VERIDIAN_TEST_OPERATOR_PUBLIC_KEY"] = (
+            base64.b64encode(public).decode("ascii")
+        )
+
+        def launch():
+            proc = subprocess.Popen(
+                [sys.executable, "-u", "-c", admin_worker_code],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=admin_env
+            )
+            return proc
+
+        def exchange(proc, request):
+            proc.stdin.write(json.dumps(request) + "\n")
+            proc.stdin.flush()
+            response = proc.stdout.readline()
+            assert response, "Authority worker terminated"
+            return json.loads(response)
+
+        def envelope(identifier, state, version, key):
+            payload = {
+                "command_id": identifier,
+                "delegation_id": "payment-delegation-001",
+                "operation": "SET_AUTHORITY",
+                "command_issued_at": datetime.now(timezone.utc).isoformat(),
+                "state": state,
+                "expected_version": version
+            }
+            return {
+                "action": "ADMINISTER_AUTHORITY",
+                "authorization": {
+                    "issuer": "TEST-OPERATOR",
+                    "payload": payload,
+                    "signature": sign_payload(key, payload)
+                }
+            }
+
+        revoke = envelope(
+            "payment-revoke-001", "REVOKED", 1, operator
+        )
+
+        forged = envelope(
+            "forged-restore-001", "ACTIVE", 2, attacker
+        )
+
+        proc = launch()
+        try:
+            ready = json.loads(proc.stdout.readline())
+            authority_service_public_key = ready['authority_service_public_key']
+            assert len(__import__('base64').b64decode(authority_service_public_key, validate=True)) == 32
+            print('PASS: AUTHORITY SERVICE PUBLIC KEY CAPTURED')
+            assert authority_service_public_key == globals()['_veridian_service_public'], 'STOP: AUTHORITY SERVICE PUBLIC KEY MISMATCH'
+            assert ready["ready"]
+            first_pid = ready["pid"]
+
+            assert exchange(proc, {
+                "action": "READ_AUTHORITY"
+            }) == {"state": "ACTIVE", "version": 1}
+
+            assert exchange(proc, revoke)["status"] == "APPLIED"
+            print("PASS: SIGNED OPERATOR PAYMENT REVOCATION")
+        finally:
+            proc.stdin.close()
+            assert proc.wait(timeout=10) == 0
+
+        proc = launch()
+        try:
+            ready = json.loads(proc.stdout.readline())
+            assert ready["ready"]
+            assert ready["pid"] != first_pid
+
+            assert exchange(proc, {
+                "action": "READ_AUTHORITY"
+            }) == {"state": "REVOKED", "version": 2}
+            print("PASS: PAYMENT AUTHORITY REVOCATION SURVIVED RESTART")
+
+            assert exchange(proc, revoke)["status"] == "FAILED_CLOSED"
+            assert exchange(proc, forged)["status"] == "FAILED_CLOSED"
+
+            assert exchange(proc, {
+                "action": "READ_AUTHORITY"
+            }) == {"state": "REVOKED", "version": 2}
+            print("PASS: ADMINISTRATIVE ATTACKS REJECTED")
+            from bvp.trust_root import verify_payload_signature
+
+            with sqlite3.connect(database) as db:
+                rows = db.execute(
+                    "SELECT command_id, delegation_id, "
+                    "resulting_version, signed_command "
+                    "FROM commands"
+                ).fetchall()
+
+            assert len(rows) == 1
+
+            command_id, delegation_id, version, stored = rows[0]
+            stored = json.loads(stored)
+
+            assert command_id == "payment-revoke-001"
+            assert delegation_id == "payment-delegation-001"
+            assert version == 2
+
+            assert stored == revoke["authorization"]
+
+            assert verify_payload_signature(
+                operator.public_key(),
+                stored["payload"],
+                stored["signature"]
+            )
+
+            assert stored["payload"]["state"] == "REVOKED"
+            assert stored["payload"]["expected_version"] + 1 == version
+
+            print("PASS: COMPLETE SIGNED REVOCATION PRESERVED")
+            print("PASS: DURABLE REVOCATION SIGNATURE VERIFIED")
+            print("PASS: REVOCATION VERSION LINKAGE VERIFIED")
+            print("PASS: REJECTED COMMANDS NOT PERSISTED")
+            return operator.public_key(), stored
+        finally:
+            proc.stdin.close()
+            assert proc.wait(timeout=10) == 0
+
+    trusted_evidence_key = Ed25519PrivateKey.generate()
+    trusted_evidence_public = trusted_evidence_key.public_key()
+
+    def start_worker(mode):
+        env = os.environ.copy()
+        env["VERIDIAN_TEST_PAYMENT_DB"] = database
+        env["VERIDIAN_TEST_EVIDENCE_KEY"] = (
+            base64.b64encode(
+                trusted_evidence_key.private_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PrivateFormat.Raw,
+                    serialization.NoEncryption()
+                )
+            ).decode("ascii")
+        )
+        # Operator changes durable authority, not worker environment.
+        # Worker startup must not modify authority.
+        env.pop("VERIDIAN_TEST_AUTHORITY_MODE", None)
+        env["VERIDIAN_TEST_TRUSTED_PUBLIC_KEY"] = (
+            base64.b64encode(public_bytes).decode("ascii")
+        )
+
+        env["VERIDIAN_TEST_EXECUTOR_PRIVATE_KEY"] = globals().get("_veridian_executor_private", "")
+        env["VERIDIAN_TEST_AUTHORITY_SERVICE_PUBLIC_KEY"] = globals().get("_veridian_service_public", "")
+        process = subprocess.Popen(
+            [sys.executable, "-u", "-c", worker_code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+
+        identity = json.loads(process.stdout.readline())
+        return process, identity
+
+    def submit(process, request):
+        process.stdin.write(json.dumps(request) + "\n")
+        process.stdin.flush()
+        return json.loads(process.stdout.readline())["status"]
+
+    def payment_request(identity):
+        payload = {
+            "authorization_id": str(uuid4()),
+            "issued_at": datetime.now(timezone.utc).isoformat(),
+            "delegation_id": "payment-delegation-001",
+            "action": "EXECUTE_PAYMENT",
+            "decision_id": identity["decision_id"],
+            "payee": identity["payee"],
+            "amount": identity["amount"],
+            "audience": "MOCK-PAYMENT-SERVICE",
+            "expires_at": (
+                datetime.now(timezone.utc) + timedelta(minutes=2)
+            ).isoformat(),
+        }
+        return {
+            "action": "EXECUTE_PAYMENT",
+            "payee": identity["payee"],
+            "amount": identity["amount"],
+            "authorization": {
+                "payload": payload,
+                "signature": sign_payload(private_key, payload),
+            },
+        }
+
+    _veridian_service_key = Ed25519PrivateKey.generate()
+
+    globals()["_veridian_service_private"] = base64.b64encode(
+        _veridian_service_key.private_bytes(
+            serialization.Encoding.Raw,
+            serialization.PrivateFormat.Raw,
+            serialization.NoEncryption()
+        )
+    ).decode("ascii")
+
+    globals()["_veridian_service_public"] = base64.b64encode(
+        _veridian_service_key.public_key().public_bytes(
+            serialization.Encoding.Raw,
+            serialization.PublicFormat.Raw
+        )
+    ).decode("ascii")
+
+    print("PASS: TRUSTED SERVICE IDENTITY PROVISIONED")
+
+
+    # Test-harness provisioning, independent of authority service.
+    _veridian_executor_key = Ed25519PrivateKey.generate()
+
+    globals()["_veridian_executor_private"] = base64.b64encode(
+        _veridian_executor_key.private_bytes(
+            serialization.Encoding.Raw,
+            serialization.PrivateFormat.Raw,
+            serialization.NoEncryption(),
+        )
+    ).decode("ascii")
+
+    globals()["_veridian_executor_public"] = base64.b64encode(
+        _veridian_executor_key.public_key().public_bytes(
+            serialization.Encoding.Raw,
+            serialization.PublicFormat.Raw,
+        )
+    ).decode("ascii")
+
+    assert (
+        globals()["_veridian_executor_public"]
+        != globals()["_veridian_service_public"]
+    ), "STOP: Executor and authority identities must differ"
+
+    print("PASS: DISTINCT EXECUTOR IDENTITY PROVISIONED")
+    active, identity = start_worker("ACTIVE")
+    try:
+        import copy
+
+        missing = payment_request(identity)
+        del missing["authorization"]["payload"]["delegation_id"]
+
+        missing["authorization"]["signature"] = sign_payload(
+            private_key,
+            missing["authorization"]["payload"]
+        )
+
+        assert submit(active, missing) == "FAILED_CLOSED"
+        print("PASS: SIGNED MISSING DELEGATION REJECTED")
+
+        wrong = payment_request(identity)
+        wrong["authorization"]["payload"]["delegation_id"] = (
+            "another-payment-delegation"
+        )
+
+        wrong["authorization"]["signature"] = sign_payload(
+            private_key,
+            wrong["authorization"]["payload"]
+        )
+
+        assert submit(active, wrong) == "FAILED_CLOSED"
+        print("PASS: SIGNED WRONG DELEGATION REJECTED")
+
+        tampered = payment_request(identity)
+        tampered["authorization"]["payload"]["delegation_id"] = (
+            "substituted-delegation"
+        )
+
+        assert submit(active, tampered) == "FAILED_CLOSED"
+        print("PASS: DELEGATION TAMPERING REJECTED")
+
+        with sqlite3.connect(database) as db:
+            assert db.execute(
+                "SELECT COUNT(*) FROM payments"
+            ).fetchone()[0] == 0
+
+        print("PASS: NO PAYMENT COMMITTED FOR INVALID DELEGATION")
+
+        # STEP84AL_ATOMIC_COMPLETION_ROLLBACK
+        print("=== STEP 84AL: ATOMIC COMPLETION ROLLBACK ===", flush=True)
+
+        rollback_request = payment_request(identity)
+        rollback_id = rollback_request["authorization"]["payload"]["authorization_id"]
+
+        with sqlite3.connect(database) as check_db:
+            before_payments = check_db.execute(
+                "SELECT COUNT(*) FROM payments"
+            ).fetchone()[0]
+            before_receipts = check_db.execute(
+                "SELECT COUNT(*) FROM payment_completion_receipts"
+            ).fetchone()[0]
+
+            check_db.execute("""
+                CREATE TRIGGER step84al_reject_receipt
+                BEFORE INSERT ON payment_completion_receipts
+                BEGIN
+                    SELECT RAISE(ABORT, 'STEP84AL_INJECTED_FAILURE');
+                END
+            """)
+
+        try:
+            rollback_status = submit(active, rollback_request)
+
+            with sqlite3.connect(database) as check_db:
+                after_payments = check_db.execute(
+                    "SELECT COUNT(*) FROM payments"
+                ).fetchone()[0]
+                after_receipts = check_db.execute(
+                    "SELECT COUNT(*) FROM payment_completion_receipts"
+                ).fetchone()[0]
+
+                matching_payments = check_db.execute(
+                    "SELECT COUNT(*) FROM payments WHERE authorization_id=?",
+                    (rollback_id,),
+                ).fetchone()[0]
+
+                matching_receipts = check_db.execute(
+                    "SELECT COUNT(*) FROM payment_completion_receipts "
+                    "WHERE authorization_id=?",
+                    (rollback_id,),
+                ).fetchone()[0]
+
+            assert rollback_status == "FAILED_CLOSED"
+            assert matching_payments == 0, "STOP: Unauthorized durable payment"
+            assert matching_receipts == 0, "STOP: Partial completion receipt"
+            assert after_payments == before_payments
+            assert after_receipts == before_receipts
+
+            print("PASS: RECEIPT STORAGE FAILURE DENIED EXECUTION")
+            print("PASS: FAILED TRANSACTION LEFT ZERO PAYMENTS")
+            print("PASS: FAILED TRANSACTION LEFT ZERO RECEIPTS")
+
+        finally:
+            with sqlite3.connect(database) as check_db:
+                check_db.execute(
+                    "DROP TRIGGER IF EXISTS step84al_reject_receipt"
+                )
+
+        print("PASS: ATOMIC ROLLBACK REGRESSION")
+
+        valid = payment_request(identity)
+
+        assert submit(active, valid) == "COMPLETED"
+        print("PASS: SIGNED PAYMENT COMMITTED BY INDEPENDENT WORKER")
+
+        assert submit(active, valid) == "FAILED_CLOSED"
+        print("PASS: DURABLE REPLAY REJECTED")
+
+        changed = dict(valid, amount=1000)
+        assert submit(active, changed) == "FAILED_CLOSED"
+        print("PASS: AMOUNT SUBSTITUTION REJECTED")
+
+        unsigned = dict(valid, authorization=None)
+        assert submit(active, unsigned) == "FAILED_CLOSED"
+        print("PASS: MISSING AUTHORIZATION REJECTED")
+
+        forged = dict(valid, authority_state="ACTIVE")
+        assert submit(active, forged) == "FAILED_CLOSED"
+        print("PASS: CALLER AUTHORITY CLAIM CANNOT REPLAY PAYMENT")
+
+        # Issue while active, revoke before first redemption.
+        pending = payment_request(identity)
+        trusted_operator_public, expected_revocation = signed_revoke()
+        assert sys.platform == "darwin"
+
+        protected_root = Path(database).resolve().parent
+
+        profile = (
+            "(version 1)\n"
+            "(allow default)\n"
+            "(deny file-write* (subpath "
+            + json.dumps(str(protected_root)) + "))"
+        )
+
+        attacks = {
+            "SQLITE MUTATION": (
+                "with sqlite3.connect(sys.argv[1]) as db:\n"
+                "    db.execute(\"UPDATE authority "
+                "SET state='ACTIVE', version=3\")"
+            ),
+            "DATABASE DELETION": "os.remove(sys.argv[1])",
+            "DATABASE RENAME": (
+                "os.rename(sys.argv[1], sys.argv[1]+'.old')"
+            )
+        }
+
+        original = Path(database).read_bytes()
+
+        for name, action in attacks.items():
+            result = subprocess.run(
+                ["/usr/bin/sandbox-exec", "-p", profile,
+                 sys.executable, "-c",
+                 "import os, sys, sqlite3\n" + action,
+                 database],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+
+            assert result.returncode != 0, name
+
+            if name == "SQLITE MUTATION":
+                assert "readonly" in result.stderr.lower() or \
+                       "permission" in result.stderr.lower(), result.stderr
+            else:
+                assert "PermissionError" in result.stderr, result.stderr
+
+            assert Path(database).read_bytes() == original
+
+            with sqlite3.connect(database) as db:
+                assert db.execute(
+                    "SELECT state, version FROM authority "
+                    "WHERE delegation_id=?",
+                    ("payment-delegation-001",)
+                ).fetchone() == ("REVOKED", 2)
+
+            print("PASS: OS BLOCKED " + name)
+
+        print("PASS: SHARED AUTHORITY DATABASE PRESERVED")
+        from bvp.trust_root import (
+            verify_payload_signature, public_key_id
+        )
+        import copy
+
+        active.stdin.write(json.dumps(pending) + "\n")
+        active.stdin.flush()
+
+        response = json.loads(active.stdout.readline())
+
+        assert response["status"] == "FAILED_CLOSED"
+        evidence = response["evidence"]
+        signature = response["evidence_signature"]
+
+        assert response["evidence_key_id"] == public_key_id(
+            trusted_evidence_public
+        )
+
+        assert verify_payload_signature(
+            trusted_evidence_public, evidence, signature
+        )
+
+        from bvp.trust_root import sign_payload, public_key_id
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        with sqlite3.connect(database) as db:
+            original = db.execute(
+                "SELECT command_id, receipt_json, signature, signer_key_id "
+                "FROM authority_service_receipts"
+            ).fetchall()
+            assert len(original) == 1, "STOP: Unexpected receipt count"
+            command_id, receipt_json, receipt_signature, signer_id = original[0]
+            payment_count = db.execute(
+                "SELECT COUNT(*) FROM payments"
+            ).fetchone()[0]
+            denial_count = db.execute(
+                "SELECT COUNT(*) FROM denial_evidence"
+            ).fetchone()[0]
+
+        assert payment_count == 1
+        receipt = json.loads(receipt_json)
+
+        service_private = Ed25519PrivateKey.from_private_bytes(
+            base64.b64decode(
+                globals()["_veridian_service_private"],
+                validate=True
+            )
+        )
+        attacker_private = Ed25519PrivateKey.generate()
+
+        wrong_receipt = dict(receipt)
+        wrong_receipt["authority_version"] = 999
+
+        attacks = (
+            ("MISSING", None),
+            ("FORGED", (
+                receipt_json,
+                base64.b64encode(b"X" * 64).decode("ascii"),
+                signer_id
+            )),
+            ("WRONG_KEY", (
+                receipt_json,
+                sign_payload(attacker_private, receipt),
+                public_key_id(attacker_private.public_key())
+            )),
+            ("MISMATCHED", (
+                json.dumps(wrong_receipt, sort_keys=True),
+                sign_payload(service_private, wrong_receipt),
+                signer_id
+            )),
+        )
+
+        for name, replacement in attacks:
+            try:
+                with sqlite3.connect(database) as db:
+                    if replacement is None:
+                        db.execute(
+                            "DELETE FROM authority_service_receipts "
+                            "WHERE command_id=?",
+                            (command_id,)
+                        )
+                    else:
+                        db.execute(
+                            "UPDATE authority_service_receipts "
+                            "SET receipt_json=?, signature=?, signer_key_id=? "
+                            "WHERE command_id=?",
+                            (*replacement, command_id)
+                        )
+
+                active.stdin.write(json.dumps(pending) + "\n")
+                active.stdin.flush()
+                raw = active.stdout.readline()
+                assert raw, f"STOP: Worker exited during {name}"
+                response = json.loads(raw)
+
+                assert response["status"] == "FAILED_CLOSED", name
+                assert "evidence" not in response, name
+
+                with sqlite3.connect(database) as db:
+                    assert db.execute(
+                        "SELECT COUNT(*) FROM payments"
+                    ).fetchone()[0] == payment_count, name
+                    assert db.execute(
+                        "SELECT COUNT(*) FROM denial_evidence"
+                    ).fetchone()[0] == denial_count, name
+
+                print("PASS: " + name + " RECEIPT REJECTED")
+
+            finally:
+                with sqlite3.connect(database) as db:
+                    db.execute(
+                        "DELETE FROM authority_service_receipts "
+                        "WHERE command_id=?",
+                        (command_id,)
+                    )
+                    db.execute(
+                        "INSERT INTO authority_service_receipts "
+                        "(command_id, receipt_json, signature, signer_key_id) "
+                        "VALUES (?, ?, ?, ?)",
+                        original[0]
+                    )
+
+        with sqlite3.connect(database) as db:
+            assert db.execute(
+                "SELECT command_id, receipt_json, signature, signer_key_id "
+                "FROM authority_service_receipts"
+            ).fetchall() == original
+
+        print("PASS: FOUR ADVERSARIAL AUTHORITY RECEIPT TESTS")
+        print("PASS: TRUSTED DENIAL SIGNATURE VERIFIED")
+
+        assert evidence["authorization"] == pending["authorization"]
+        payload = pending["authorization"]["payload"]
+
+        assert evidence["authorization_id"] == payload["authorization_id"]
+        assert evidence["decision_id"] == payload["decision_id"]
+        assert evidence["payee"] == payload["payee"]
+        assert evidence["amount"] == payload["amount"]
+        assert evidence["delegation_id"] == "payment-delegation-001"
+
+        print("PASS: EXACT PAYMENT AUTHORIZATION BOUND")
+
+        assert evidence["authority_state"] == "REVOKED"
+        assert evidence["authority_version"] == 2
+        assert evidence["status"] == "FAILED_CLOSED"
+        assert evidence["reason"] == "CURRENT_AUTHORITY_REVOKED"
+
+        print("PASS: REVOKED AUTHORITY VERSION BOUND")
+        def verify_revocation_link(item):
+            try:
+                revocation = item["signed_revocation"]
+                command = revocation["payload"]
+
+                return (
+                    revocation["issuer"] == "TEST-OPERATOR"
+                    and verify_payload_signature(
+                        trusted_operator_public,
+                        command,
+                        revocation["signature"]
+                    )
+                    and command["operation"] == "SET_AUTHORITY"
+                    and command["state"] == "REVOKED"
+                    and command["delegation_id"] == item["delegation_id"]
+                    and command["command_id"] == item["revocation_command_id"]
+                    and type(command["expected_version"]) is int
+                    and command["expected_version"] + 1 == item["authority_version"]
+                    and item["authority_state"] == "REVOKED"
+                )
+            except Exception:
+                return False
+
+        assert evidence["signed_revocation"] == expected_revocation
+        assert verify_revocation_link(evidence)
+
+        print("PASS: AUTHENTICATED REVOCATION LINK VERIFIED")
+
+        missing = copy.deepcopy(evidence)
+        del missing["signed_revocation"]
+        assert not verify_revocation_link(missing)
+
+        print("PASS: MISSING REVOCATION REJECTED")
+
+        forged = copy.deepcopy(evidence)
+        forged["signed_revocation"]["signature"] = sign_payload(
+            Ed25519PrivateKey.generate(),
+            forged["signed_revocation"]["payload"]
+        )
+        assert not verify_revocation_link(forged)
+
+        print("PASS: FORGED REVOCATION REJECTED")
+
+        for field, value in [
+            ("revocation_command_id", "substituted-command"),
+            ("delegation_id", "another-delegation"),
+            ("authority_version", 3)
+        ]:
+            changed = copy.deepcopy(evidence)
+            changed[field] = value
+            assert not verify_revocation_link(changed)
+            print("PASS: REVOCATION LINK MISMATCH REJECTED: " + field)
+
+        print("PASS: AUTHENTICATED REVOCATION LINKAGE")
+
+        for field, value in [
+            ("authority_state", "ACTIVE"),
+            ("authority_version", 1),
+            ("amount", evidence["amount"] + 1),
+            ("status", "COMPLETED"),
+            ("decision_id", "substituted-decision")
+        ]:
+            tampered = copy.deepcopy(evidence)
+            tampered[field] = value
+
+            assert not verify_payload_signature(
+                trusted_evidence_public, tampered, signature
+            )
+
+            print("PASS: EVIDENCE TAMPERING REJECTED: " + field)
+
+        forged_key = Ed25519PrivateKey.generate()
+        forged_signature = sign_payload(forged_key, evidence)
+
+        assert not verify_payload_signature(
+            trusted_evidence_public, evidence, forged_signature
+        )
+
+        print("PASS: FORGED EVIDENCE SIGNATURE REJECTED")
+        print("PASS: AUTHENTICATED PAYMENT DENIAL EVIDENCE")
+        print("PASS: POST-ISSUANCE REVOCATION BLOCKED PAYMENT")
+    finally:
+        active.stdin.close()
+        assert active.wait(timeout=10) == 0
+
+    assert active.poll() == 0
+    print("PASS: ORIGINAL PAYMENT WORKER TERMINATED")
+
+    with sqlite3.connect(database) as db:
+        rows = db.execute(
+            "SELECT authorization_id, signed_evidence, "
+            "key_id, signature FROM denial_evidence "
+            "WHERE evidence_id=?",
+            (evidence["evidence_id"],)
+        ).fetchall()
+
+        unauthorized = db.execute(
+            "SELECT COUNT(*) FROM payments "
+            "WHERE authorization_id=?",
+            (evidence["authorization_id"],)
+        ).fetchone()[0]
+
+    assert len(rows) == 1
+
+    authorization_id, stored_json, key_id, stored_signature = rows[0]
+    stored_evidence = json.loads(stored_json)
+
+    assert authorization_id == evidence["authorization_id"]
+    assert stored_evidence == evidence
+    assert stored_signature == signature
+    assert key_id == public_key_id(trusted_evidence_public)
+
+    print("PASS: DENIAL EVIDENCE SURVIVED WORKER TERMINATION")
+
+    assert verify_payload_signature(
+        trusted_evidence_public,
+        stored_evidence,
+        stored_signature
+    )
+
+    print("PASS: PERSISTED DENIAL SIGNATURE VERIFIED")
+
+    assert verify_revocation_link(stored_evidence)
+
+    print("PASS: PERSISTED REVOCATION LINK VERIFIED")
+
+    assert unauthorized == 0
+
+    print("PASS: DENIED AUTHORIZATION NEVER COMMITTED")
+    print("PASS: DURABLE DENIAL EVIDENCE VERIFIED")
+    with sqlite3.connect(database) as db:
+        events = db.execute(
+            "SELECT command_id, delegation_id, "
+            "authority_version, authority_state, applied_at "
+            "FROM authority_application_events"
+        ).fetchall()
+
+    assert len(events) == 1
+
+    command_id, delegation_id, version, state, applied_at = events[0]
+
+    assert command_id == evidence["revocation_command_id"]
+    assert delegation_id == evidence["delegation_id"]
+    assert version == evidence["authority_version"]
+    assert state == "REVOKED"
+
+    command_time = datetime.fromisoformat(
+        evidence["signed_revocation"]["payload"]["command_issued_at"]
+    )
+
+    application_time = datetime.fromisoformat(applied_at)
+
+    observation_time = datetime.fromisoformat(
+        evidence["observed_at"]
+    )
+
+    assert command_time <= application_time <= observation_time
+
+    print("PASS: APPLICATION RECORD VERIFIED")
+    print("PASS: APPLICATION VERSION LINK VERIFIED")
+    print("PASS: LOCAL REVOCATION EVENT ORDER VERIFIED")
+    def encode_public(key):
+        return base64.b64encode(
+            key.public_bytes(
+                serialization.Encoding.Raw,
+                serialization.PublicFormat.Raw
+            )
+        ).decode("ascii")
+
+    replay_config = {
+        "database": database,
+        "evidence_id": evidence["evidence_id"],
+        "payment_key": encode_public(private_key.public_key()),
+        "operator_key": encode_public(trusted_operator_public),
+        "evidence_key": encode_public(trusted_evidence_public)
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-c", independent_verifier_code],
+        input=json.dumps(replay_config),
+        capture_output=True,
+        text=True,
+        timeout=15
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "VERIFIED_DENIAL"
+
+    print("PASS: INDEPENDENT CROSS-PROCESS DENIAL REPLAY")
+    def replay_check(config, expected):
+        result = subprocess.run(
+            [sys.executable, "-c", independent_verifier_code],
+            input=json.dumps(config),
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        assert result.returncode == (0 if expected else 1)
+        assert result.stdout.strip() == (
+            "VERIFIED_DENIAL" if expected else "REPLAY_REJECTED"
+        )
+
+    missing = dict(replay_config, evidence_id="missing-evidence")
+    replay_check(missing, False)
+    print("PASS: INDEPENDENT REPLAY REJECTED MISSING EVIDENCE")
+
+    for field in ("payment_key", "operator_key", "evidence_key"):
+        wrong = dict(replay_config)
+        wrong[field] = encode_public(
+            Ed25519PrivateKey.generate().public_key()
+        )
+        replay_check(wrong, False)
+        print("PASS: INDEPENDENT REPLAY REJECTED WRONG " + field)
+
+    for field, value in [
+        ("authority_state", "ACTIVE"),
+        ("authority_version", 1),
+        ("amount", evidence["amount"] + 1),
+        ("status", "COMPLETED"),
+        ("decision_id", "substituted-decision")
+    ]:
+        altered = copy.deepcopy(stored_evidence)
+        altered[field] = value
+
+        with tempfile.TemporaryDirectory() as replay_folder:
+            replay_db = str(Path(replay_folder) / "replay.sqlite")
+
+            with sqlite3.connect(database) as source:
+                with sqlite3.connect(replay_db) as target:
+                    source.backup(target)
+
+            with sqlite3.connect(replay_db) as db:
+                db.execute(
+                    "UPDATE denial_evidence SET signed_evidence=? "
+                    "WHERE evidence_id=?",
+                    (json.dumps(altered), evidence["evidence_id"])
+                )
+
+            config = dict(replay_config, database=replay_db)
+            replay_check(config, False)
+
+        print("PASS: INDEPENDENT REPLAY REJECTED TAMPERED " + field)
+
+    replay_check(replay_config, True)
+
+    print("PASS: ORIGINAL EVIDENCE REMAINS VALID")
+    print("PASS: ADVERSARIAL INDEPENDENT REPLAY")
+    for mode in ("MISSING", "WRONG"):
+        altered = copy.deepcopy(stored_evidence)
+        authorization = altered["authorization"]
+        payload = authorization["payload"]
+
+        if mode == "MISSING":
+            del payload["delegation_id"]
+        else:
+            payload["delegation_id"] = "another-payment-delegation"
+
+        authorization["signature"] = sign_payload(
+            private_key, payload
+        )
+
+        altered_signature = sign_payload(
+            trusted_evidence_key, altered
+        )
+
+        assert verify_payload_signature(
+            private_key.public_key(),
+            payload,
+            authorization["signature"]
+        )
+
+        assert verify_payload_signature(
+            trusted_evidence_public,
+            altered,
+            altered_signature
+        )
+
+        with tempfile.TemporaryDirectory() as folder:
+            replay_db = str(Path(folder) / "replay.sqlite")
+
+            with sqlite3.connect(database) as source:
+                with sqlite3.connect(replay_db) as target:
+                    source.backup(target)
+
+            with sqlite3.connect(replay_db) as db:
+                db.execute(
+                    "UPDATE denial_evidence "
+                    "SET signed_evidence=?, signature=? "
+                    "WHERE evidence_id=?",
+                    (
+                        json.dumps(altered),
+                        altered_signature,
+                        evidence["evidence_id"]
+                    )
+                )
+
+            replay_check(
+                dict(replay_config, database=replay_db),
+                False
+            )
+
+        print("PASS: VALID SIGNATURES WITH " + mode +
+              " DELEGATION REJECTED")
+
+    replay_check(replay_config, True)
+
+    print("PASS: ORIGINAL DELEGATION EVIDENCE VALID")
+    print("PASS: CROSS-DELEGATION HISTORICAL REPLAY")
+    for mode in (
+        "APPLICATION_BEFORE_COMMAND",
+        "APPLICATION_AFTER_DENIAL",
+        "AUTHORIZATION_AFTER_REVOCATION"
+    ):
+        altered = copy.deepcopy(stored_evidence)
+
+        if mode == "APPLICATION_BEFORE_COMMAND":
+            command_time = datetime.fromisoformat(
+                altered["signed_revocation"]["payload"]["command_issued_at"]
+            )
+
+            altered["application_event"]["applied_at"] = (
+                command_time - timedelta(seconds=1)
+            ).isoformat()
+
+        elif mode == "APPLICATION_AFTER_DENIAL":
+            observed = datetime.fromisoformat(
+                altered["observed_at"]
+            )
+
+            altered["application_event"]["applied_at"] = (
+                observed + timedelta(seconds=1)
+            ).isoformat()
+
+        else:
+            authorization = altered["authorization"]
+            command_time = datetime.fromisoformat(
+                altered["signed_revocation"]["payload"]["command_issued_at"]
+            )
+
+            authorization["payload"]["issued_at"] = (
+                command_time + timedelta(seconds=1)
+            ).isoformat()
+
+            authorization["signature"] = sign_payload(
+                private_key, authorization["payload"]
+            )
+
+        altered_signature = sign_payload(
+            trusted_evidence_key, altered
+        )
+
+        assert verify_payload_signature(
+            trusted_evidence_public,
+            altered,
+            altered_signature
+        )
+
+        with tempfile.TemporaryDirectory() as folder:
+            replay_db = str(Path(folder) / "ordering.sqlite")
+
+            with sqlite3.connect(database) as source:
+                with sqlite3.connect(replay_db) as target:
+                    source.backup(target)
+
+            with sqlite3.connect(replay_db) as db:
+                changed = db.execute(
+                    "UPDATE denial_evidence "
+                    "SET signed_evidence=?, signature=? "
+                    "WHERE evidence_id=?",
+                    (
+                        json.dumps(altered),
+                        altered_signature,
+                        evidence["evidence_id"]
+                    )
+                )
+
+                assert changed.rowcount == 1
+
+            replay_check(
+                dict(replay_config, database=replay_db),
+                False
+            )
+
+        print("PASS: SIGNED INVALID CHRONOLOGY REJECTED: " + mode)
+
+    replay_check(replay_config, True)
+
+    print("PASS: ORIGINAL HISTORICAL ORDER VALID")
+    print("PASS: ADVERSARIAL HISTORICAL ORDERING")
+    with sqlite3.connect(database) as db:
+        before_count = db.execute(
+            "SELECT COUNT(*) FROM denial_evidence"
+        ).fetchone()[0]
+
+        db.execute("""
+            CREATE TRIGGER reject_denial_evidence
+            BEFORE INSERT ON denial_evidence
+            BEGIN
+                SELECT RAISE(ABORT, 'TEST_STORAGE_FAILURE');
+            END
+        """)
+
+    failure_worker, failure_identity = start_worker("REVOKED")
+
+    failure_request = payment_request(failure_identity)
+
+    try:
+        output, errors = failure_worker.communicate(
+            input=json.dumps(failure_request) + "\n",
+            timeout=15
+        )
+    except subprocess.TimeoutExpired:
+        failure_worker.kill()
+        failure_worker.communicate()
+        raise AssertionError("STOP: Worker response timeout")
+
+    assert failure_worker.returncode == 0, errors
+
+    failure_response = json.loads(output.strip())
+
+    assert failure_response["status"] == "FAILED_CLOSED"
+    assert "evidence" not in failure_response
+
+    with sqlite3.connect(database) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM denial_evidence"
+        ).fetchone()[0] == before_count
+
+        assert db.execute(
+            "SELECT COUNT(*) FROM payments"
+        ).fetchone()[0] == 1
+
+        assert db.execute(
+            "SELECT state, version FROM authority "
+            "WHERE delegation_id=?",
+            ("payment-delegation-001",)
+        ).fetchone() == ("REVOKED", 2)
+
+        db.execute("DROP TRIGGER reject_denial_evidence")
+
+    print("PASS: EVIDENCE STORAGE FAILURE BLOCKED PAYMENT")
+    print("PASS: NO FALSE EVIDENCE RETURNED")
+    print("PASS: NO PARTIAL EVIDENCE COMMITTED")
+    print("PASS: REVOKED AUTHORITY PRESERVED")
+
+    revoked, identity = start_worker("REVOKED")
+    try:
+        stale = payment_request(identity)
+        stale["authority_state"] = "ACTIVE"
+
+        assert submit(revoked, stale) == "FAILED_CLOSED"
+        print("PASS: REVOKED AUTHORITY REJECTED IN INDEPENDENT WORKER")
+    finally:
+        revoked.stdin.close()
+        revoked.wait(timeout=10)
+
+    with sqlite3.connect(database) as db:
+        count = db.execute(
+            "SELECT COUNT(*) FROM payments"
+        ).fetchone()[0]
+
+    assert count == 1
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from bvp.trust_root import verify_payload_signature, public_key_id
+
+    with sqlite3.connect(database) as proof_db:
+        payments = proof_db.execute(
+            "SELECT authorization_id, decision_id, payee, amount "
+            "FROM payments"
+        ).fetchall()
+        assert len(payments) == 1
+
+        payment = payments[0]
+        rows = proof_db.execute(
+            "SELECT receipt_json, signature, signer_key_id "
+            "FROM payment_completion_receipts "
+            "WHERE authorization_id=?",
+            (payment[0],),
+        ).fetchall()
+
+        assert len(rows) == 1
+
+        receipt = json.loads(rows[0][0])
+        expected = {
+            "schema": "veridian.payment-completion.v1",
+            "status": "COMPLETED",
+            "authorization_id": payment[0],
+            "decision_id": payment[1],
+            "payee": payment[2],
+            "amount": payment[3],
+        }
+        assert receipt == expected
+
+        executor_public = Ed25519PublicKey.from_public_bytes(
+            base64.b64decode(
+                globals()["_veridian_executor_public"],
+                validate=True,
+            )
+        )
+
+        assert rows[0][2] == public_key_id(executor_public)
+        assert verify_payload_signature(
+            executor_public, receipt, rows[0][1]
+        )
+
+        assert proof_db.execute(
+            "SELECT COUNT(*) FROM payment_completion_receipts"
+        ).fetchone()[0] == 1
+
+    print("PASS: EXECUTOR-SIGNED COMPLETION RECEIPT VERIFIED")
+    print("PASS: RECEIPT BOUND TO EXACT DURABLE PAYMENT")
+    # STEP84AM_PERMANENT_RECEIPT_ATTACKS
+    import copy
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey, Ed25519PublicKey
+    )
+    from bvp.trust_root import (
+        public_key_id, sign_payload, verify_payload_signature
+    )
+
+    print("=== STEP 84AM: COMPLETION RECEIPT ATTACKS ===")
+
+    with sqlite3.connect(database) as attack_db:
+        payments = attack_db.execute(
+            "SELECT authorization_id, decision_id, payee, amount "
+            "FROM payments"
+        ).fetchall()
+        assert len(payments) == 1
+
+        payment = payments[0]
+        stored = attack_db.execute(
+            "SELECT receipt_json, signature, signer_key_id "
+            "FROM payment_completion_receipts "
+            "WHERE authorization_id=?",
+            (payment[0],)
+        ).fetchone()
+
+        assert stored is not None
+        genuine = json.loads(stored[0])
+        signature = stored[1]
+        signer_id = stored[2]
+
+        executor_public = Ed25519PublicKey.from_public_bytes(
+            base64.b64decode(
+                globals()["_veridian_executor_public"],
+                validate=True
+            )
+        )
+
+        expected = {
+            "schema": "veridian.payment-completion.v1",
+            "status": "COMPLETED",
+            "authorization_id": payment[0],
+            "decision_id": payment[1],
+            "payee": payment[2],
+            "amount": payment[3],
+        }
+
+        def accepts(candidate, candidate_signature, candidate_key):
+            if not isinstance(candidate, dict):
+                return False
+            if candidate != expected:
+                return False
+            if candidate_key != public_key_id(executor_public):
+                return False
+            try:
+                if not verify_payload_signature(
+                    executor_public, candidate, candidate_signature
+                ):
+                    return False
+            except (TypeError, ValueError):
+                return False
+
+            persisted = attack_db.execute(
+                "SELECT receipt_json, signature, signer_key_id "
+                "FROM payment_completion_receipts "
+                "WHERE authorization_id=?",
+                (candidate["authorization_id"],)
+            ).fetchone()
+
+            return persisted == (
+                json.dumps(candidate, sort_keys=True),
+                candidate_signature,
+                candidate_key,
+            )
+
+        assert accepts(genuine, signature, signer_id)
+        print("PASS: GENUINE COMPLETION RECEIPT ACCEPTED")
+
+        assert not accepts(None, None, signer_id)
+        print("PASS: MISSING COMPLETION RECEIPT REJECTED")
+
+        attacker = Ed25519PrivateKey.generate()
+        forged = sign_payload(attacker, genuine)
+
+        assert not accepts(genuine, forged, signer_id)
+        print("PASS: FORGED EXECUTOR SIGNATURE REJECTED")
+
+        assert not accepts(
+            genuine, forged, public_key_id(attacker.public_key())
+        )
+        print("PASS: ATTACKER EXECUTOR IDENTITY REJECTED")
+
+        for field, replacement in (
+            ("authorization_id", "forged-authorization"),
+            ("decision_id", "forged-decision"),
+            ("payee", "attacker-recipient"),
+            ("amount", payment[3] + 1),
+            ("status", "FAILED_CLOSED"),
+        ):
+            modified_receipt = copy.deepcopy(genuine)
+            modified_receipt[field] = replacement
+            assert not accepts(
+                modified_receipt, signature, signer_id
+            ), "STOP: Tampered receipt accepted: " + field
+            print("PASS: RECEIPT TAMPERING REJECTED:", field)
+
+        assert accepts(genuine, signature, signer_id)
+        assert attack_db.execute(
+            "SELECT COUNT(*) FROM payments"
+        ).fetchone()[0] == 1
+
+    print("PASS: ORIGINAL PAYMENT AND RECEIPT PRESERVED")
+    print("PASS: STEP 84AM PERMANENT RECEIPT ATTACKS")
+
+    # STEP84AQ_INDEPENDENT_COMPLETION_VERIFIER
+    import os
+    import subprocess
+    import sys
+
+    print("=== STEP 84AQ: INDEPENDENT RECEIPT VERIFIER ===",
+          flush=True)
+
+    verifier_code = """
+    import base64
+    import json
+    import os
+    import sqlite3
+    import sys
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PublicKey
+    )
+    from bvp.trust_root import public_key_id, verify_payload_signature
+
+    db_path, trusted_key, mode = sys.argv[1:]
+
+    assert not any(
+        "PRIVATE_KEY" in name for name in os.environ
+    ), "Private key leaked to verifier"
+
+    public = Ed25519PublicKey.from_public_bytes(
+        base64.b64decode(trusted_key, validate=True)
+    )
+
+    accepted = False
+
+    try:
+        with sqlite3.connect(
+            "file:" + db_path + "?mode=ro", uri=True
+        ) as db:
+            payments = db.execute(
+                "SELECT authorization_id, decision_id, payee, amount "
+                "FROM payments"
+            ).fetchall()
+            assert len(payments) == 1
+            payment = payments[0]
+
+            rows = db.execute(
+                "SELECT receipt_json, signature, signer_key_id "
+                "FROM payment_completion_receipts "
+                "WHERE authorization_id=?",
+                (payment[0],)
+            ).fetchall()
+            assert len(rows) == 1
+
+            raw, signature, signer = rows[0]
+
+            if mode == "missing":
+                raw = None
+            elif mode == "forged":
+                signature = "AAAA"
+            elif mode == "wrong-key":
+                signer = "untrusted-executor"
+
+            if raw is not None:
+                receipt = json.loads(raw)
+
+                if mode == "tampered":
+                    receipt["amount"] += 1
+
+                expected = {
+                    "schema": "veridian.payment-completion.v1",
+                    "status": "COMPLETED",
+                    "authorization_id": payment[0],
+                    "decision_id": payment[1],
+                    "payee": payment[2],
+                    "amount": payment[3],
+                }
+
+                accepted = (
+                    receipt == expected
+                    and signer == public_key_id(public)
+                    and verify_payload_signature(
+                        public, receipt, signature
+                    )
+                )
+
+    except Exception:
+        accepted = False
+
+    if mode == "genuine" and accepted:
+        print("VERIFY_ACCEPTED")
+        sys.exit(0)
+
+    if mode != "genuine" and not accepted:
+        print("VERIFY_REJECTED:" + mode)
+        sys.exit(0)
+
+    print("UNEXPECTED_VERIFICATION_RESULT:" + mode)
+    sys.exit(1)
+    """
+
+    public_key = globals()["_veridian_executor_public"]
+
+    verifier_env = {
+        key: value
+        for key, value in os.environ.items()
+        if "PRIVATE_KEY" not in key
+    }
+
+    for mode in (
+        "genuine",
+        "missing",
+        "forged",
+        "wrong-key",
+        "tampered",
+    ):
+        result = subprocess.run(
+            [
+                sys.executable, "-c", verifier_code,
+                str(database), public_key, mode
+            ],
+            env=verifier_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        expected = (
+            "VERIFY_ACCEPTED"
+            if mode == "genuine"
+            else "VERIFY_REJECTED:" + mode
+        )
+
+        assert result.returncode == 0, (
+            "STOP: " + mode + ": "
+            + result.stdout + result.stderr
+        )
+        assert expected in result.stdout, (
+            "STOP: Unexpected verifier result: " + mode
+        )
+
+        print("PASS: INDEPENDENT " + expected)
+
+    with sqlite3.connect(database) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM payments"
+        ).fetchone()[0] == 1
+
+        assert db.execute(
+            "SELECT COUNT(*) FROM payment_completion_receipts"
+        ).fetchone()[0] == 1
+
+    print("PASS: INDEPENDENT VERIFIER PRESERVED DURABLE STATE")
+    print("PASS: STEP 84AQ INDEPENDENT VERIFICATION")
+
+    print("PASS: EXACTLY ONE DURABLE MOCK PAYMENT")
+
+print("PASS: INDEPENDENT PAYMENT ENFORCEMENT REGRESSION")
